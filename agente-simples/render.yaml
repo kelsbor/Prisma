@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: agente-financeiro
+    runtime: python
+    plan: free               # ATENÇÃO: dados do SQLite são apagados a cada deploy/reinício
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: MCP_TOKEN
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: HASH_KEY
+        sync: false
