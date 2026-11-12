@@ -1,0 +1,159 @@
+{
+  "artigo-financeia-gestao-financeira-com-ia.jsonl": {
+    "instituicao": "Artigo acadêmico",
+    "titulo": "Financeia: aplicação web de gestão financeira pessoal com IA generativa",
+    "observacao": "Artigo sobre outro app, não é material educativo: avaliar se deve ficar na base."
+  },
+  "atualizacoes-da-equipe.jsonl": {
+    "instituicao": "Equipe Prisma",
+    "titulo": "Atualizações da equipe (2026-11)",
+    "observacao": "Corrige materiais antigos. Tem prioridade em caso de conflito."
+  },
+  "bcb-caderno-educacao-financeira-modulo-5.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "Caderno de Educação Financeira, Módulo 5: Poupança Ativa e Investimento"
+  },
+  "bcb-caderno-educacao-financeira-modulo-6.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "Caderno de Educação Financeira, Módulo 6: Prevenção de Riscos, Proteção do Patrimônio e Planejamento de Futuro"
+  },
+  "bcb-cidadania-financeira-conceito-2018.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "O que é cidadania financeira? (2018)"
+  },
+  "bcb-folder-elimine-o-desperdicio.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "Elimine o Desperdício e Faça Seu Dinheiro Valer (série Cidadania Financeira)"
+  },
+  "bcb-folder-sonhos-educacao-financeira.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "Sonhos: a Educação Financeira Pode Ajudar? (série Cidadania Financeira)"
+  },
+  "bcb-juros-e-spread-bancario-1999.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "Juros e Spread Bancário no Brasil (1999)",
+    "observacao": "Material de 1999: números e regras podem estar desatualizados."
+  },
+  "bcb-o-fantasma-da-inflacao.jsonl": {
+    "instituicao": "Banco Central do Brasil",
+    "titulo": "O Fantasma da Inflação"
+  },
+  "cvm-analise-de-investimentos.jsonl": {
+    "instituicao": "CVM",
+    "titulo": "Análise de Investimentos"
+  },
+  "cvm-caderno-fundos-de-investimento.jsonl": {
+    "instituicao": "CVM",
+    "titulo": "Cadernos CVM: Fundos de Investimento"
+  },
+  "cvm-fundos-de-investimento-imobiliario-2010.jsonl": {
+    "instituicao": "CVM",
+    "titulo": "Fundos de Investimento Imobiliário (atualizado até 2010)",
+    "observacao": "Regulamentação de 2010: conferir regras atuais."
+  },
+  "cvm-mercado-de-derivativos.jsonl": {
+    "instituicao": "CVM",
+    "titulo": "Mercado de Derivativos no Brasil"
+  },
+  "cvm-mercado-de-valores-mobiliarios.jsonl": {
+    "instituicao": "CVM",
+    "titulo": "Mercado de Valores Mobiliários Brasileiro"
+  },
+  "enap-investimentos-em-titulos-publicos.jsonl": {
+    "instituicao": "Enap",
+    "titulo": "Investimentos em títulos públicos"
+  },
+  "enap-tesouro-direto.jsonl": {
+    "instituicao": "Enap",
+    "titulo": "Tesouro Direto"
+  },
+  "endc-prevencao-e-tratamento-do-superendividamento.jsonl": {
+    "instituicao": "Escola Nacional de Defesa do Consumidor",
+    "titulo": "Prevenção e Tratamento do Superendividamento",
+    "observacao": "OCR da capa ruim; texto do miolo legível."
+  },
+  "febraban-10-comportamentos-do-empreendedor.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "10 comportamentos que todo empreendedor pode desenvolver"
+  },
+  "febraban-como-sair-das-dividas-em-10-passos.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Como sair das dívidas em 10 passos"
+  },
+  "febraban-golpes-financeiros-mais-recorrentes.jsonl": {
+    "instituicao": "FEBRABAN (divulgado pelo governo)",
+    "titulo": "Golpes financeiros mais recorrentes"
+  },
+  "febraban-guia-da-poupanca.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia prático para aprender a guardar dinheiro"
+  },
+  "febraban-guia-da-renda-extra.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia da Renda Extra"
+  },
+  "febraban-guia-da-reserva-de-emergencia.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia da Reserva de Emergência"
+  },
+  "febraban-guia-de-boas-praticas-de-educacao-financeira.jsonl": {
+    "instituicao": "FEBRABAN",
+    "titulo": "Guia de boas práticas de educação financeira no setor bancário brasileiro"
+  },
+  "febraban-guia-do-cartao-de-credito.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia do Cartão de Crédito",
+    "observacao": "p. 10 (mínimo de 15%) e p. 11 (sem teto de juros) estão desatualizadas."
+  },
+  "febraban-guia-do-cheque-especial.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia do Cheque Especial"
+  },
+  "febraban-guia-do-credito-consignado.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia do Crédito Consignado"
+  },
+  "febraban-guia-do-planejamento-financeiro-familiar.jsonl": {
+    "instituicao": "FEBRABAN (Meu Bolso em Dia)",
+    "titulo": "Guia do Planejamento Financeiro Familiar"
+  },
+  "febraban-indice-de-saude-financeira-2021.jsonl": {
+    "instituicao": "FEBRABAN",
+    "titulo": "Índice de Saúde Financeira do Brasileiro (I-SFB), versão 1.0, 2021"
+  },
+  "febraban-papo-reto-financas-em-dia.jsonl": {
+    "instituicao": "FEBRABAN",
+    "titulo": "Papo Reto: suas finanças em dia"
+  },
+  "gov-cartilha-a-caminho-da-aposentadoria-2021.jsonl": {
+    "instituicao": "Governo",
+    "titulo": "Cartilha Aposentando, Tema 1: A caminho da Aposentadoria (2021)",
+    "observacao": "OCR da capa ruim."
+  },
+  "gov-plano-de-educacao-previdenciaria-2024-2025.jsonl": {
+    "instituicao": "Departamento do Regime de Previdência Complementar",
+    "titulo": "Plano de Educação Previdenciária da Previdência Complementar 2024–2025"
+  },
+  "mec-educacao-financeira-conhecimento-que-constroi-o-futuro.jsonl": {
+    "instituicao": "MEC",
+    "titulo": "Educação Financeira: conhecimento que constrói o futuro"
+  },
+  "mp-dicas-para-sua-saude-financeira.jsonl": {
+    "instituicao": "Ministério Público",
+    "titulo": "Dicas para sua saúde financeira",
+    "observacao": "OCR com páginas marcadas para revisão."
+  },
+  "mpes-fraudes-bancarias.jsonl": {
+    "instituicao": "Ministério Público do Espírito Santo",
+    "titulo": "Fraudes bancárias",
+    "observacao": "O arquivo original dizia MPRJ, mas o texto é do MPES."
+  },
+  "procon-go-relacao-do-consumidor-com-seu-dinheiro-2019.jsonl": {
+    "instituicao": "Procon Goiás",
+    "titulo": "Pesquisa: a relação do consumidor com seu dinheiro (2019)"
+  },
+  "senacon-endividamento-no-brasil.jsonl": {
+    "instituicao": "Senacon",
+    "titulo": "Endividamento no Brasil"
+  }
+}

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Agente de Risco</title>
+  <desc>As transações do titular são categorizadas e seguem por dois caminhos: indicadores em Python e a rede neural (autoencoder), que aponta compras atípicas. Os dois somam um score de 0 a 100. O modelo é treinado uma vez com dados sintéticos e exportado para .npz.</desc>
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-size: 15px; font-weight: 600; }  .s { font-size: 12.5px; }  .l { font-size: 12px; fill: #5F5E5A; }
+      .g { font-size: 13px; font-weight: 600; fill: #5F5E5A; }
+      .ag rect { fill: #EEEDFE; stroke: #534AB7; } .ag .t { fill: #3C3489; } .ag .s { fill: #534AB7; }
+      .dd rect { fill: #E1F5EE; stroke: #0F6E56; } .dd .t { fill: #085041; } .dd .s { fill: #0F6E56; }
+      .nt rect { fill: #F1EFE8; stroke: #5F5E5A; } .nt .t { fill: #2C2C2A; } .nt .s { fill: #444441; }
+      .rn rect { fill: #FAEEDA; stroke: #854F0B; } .rn .t { fill: #633806; } .rn .s { fill: #854F0B; }
+      .ex rect { fill: #FFFFFF; stroke: #5F5E5A; stroke-dasharray: 6 4; } .ex .t { fill: #2C2C2A; } .ex .s { fill: #444441; }
+      .seta { stroke: #5F5E5A; stroke-width: 1.4; fill: none; }  .trac { stroke-dasharray: 6 4; }
+      .grupo { fill: none; stroke: #B4B2A9; stroke-dasharray: 4 4; }
+    </style>
+  </defs>
+  <rect width="1000" height="720" fill="#FFFFFF"/>
+  <g class="ag"><rect x="390" y="30" width="220" height="56" rx="8"/><text class="t" x="500.0" y="54.0" text-anchor="middle">Transações</text><text class="s" x="500.0" y="73.0" text-anchor="middle">consultar_titular (MCP)</text></g>
+  <g class="nt"><rect x="390" y="130" width="220" height="56" rx="8"/><text class="t" x="500.0" y="154.0" text-anchor="middle">Categorizar</text><text class="s" x="500.0" y="173.0" text-anchor="middle">descrição → categoria</text></g>
+  <g class="nt"><rect x="60" y="240" width="300" height="56" rx="8"/><text class="t" x="210.0" y="264.0" text-anchor="middle">Indicadores em Python</text><text class="s" x="210.0" y="283.0" text-anchor="middle">renda, saldo, juros, fatura, reserva</text></g>
+  <g class="rn"><rect x="480" y="240" width="200" height="56" rx="8"/><text class="t" x="580.0" y="264.0" text-anchor="middle">27 features</text><text class="s" x="580.0" y="283.0" text-anchor="middle">relativas à própria pessoa</text></g>
+  <g class="rn"><rect x="730" y="240" width="230" height="56" rx="8"/><text class="t" x="845.0" y="264.0" text-anchor="middle">Autoencoder</text><text class="s" x="845.0" y="283.0" text-anchor="middle">27→32→16→6→16→32→27</text></g>
+  <g class="rn"><rect x="730" y="350" width="230" height="56" rx="8"/><text class="t" x="845.0" y="374.0" text-anchor="middle">Erro de reconstrução</text><text class="s" x="845.0" y="393.0" text-anchor="middle">acima do limiar: atípica</text></g>
+  <g class="rn"><rect x="480" y="350" width="200" height="56" rx="8"/><text class="t" x="580.0" y="374.0" text-anchor="middle">Compras atípicas</text><text class="s" x="580.0" y="393.0" text-anchor="middle">com motivos</text></g>
+  <g class="nt"><rect x="390" y="460" width="220" height="56" rx="8"/><text class="t" x="500.0" y="484.0" text-anchor="middle">Score de 0 a 100</text><text class="s" x="500.0" y="503.0" text-anchor="middle">baixo · moderado · alto</text></g>
+  <g class="ag"><rect x="700" y="460" width="260" height="56" rx="8"/><text class="t" x="830.0" y="484.0" text-anchor="middle">perfil_de_risco</text><text class="s" x="830.0" y="503.0" text-anchor="middle">MCP e Especialista</text></g>
+  <path class="seta" d="M500 86 L500 126" marker-end="url(#seta)"/>
+  <path class="seta" d="M440 186 L440 212 L210 212 L210 236" marker-end="url(#seta)"/>
+  <path class="seta" d="M560 186 L560 212 L580 212 L580 236" marker-end="url(#seta)"/>
+  <path class="seta" d="M680 268 L726 268" marker-end="url(#seta)"/>
+  <path class="seta" d="M845 296 L845 346" marker-end="url(#seta)"/>
+  <path class="seta" d="M730 378 L684 378" marker-end="url(#seta)"/>
+  <path class="seta" d="M580 406 L580 456" marker-end="url(#seta)"/>
+  <text class="l" x="588" y="436" text-anchor="start">10 pontos</text>
+  <path class="seta" d="M210 296 L210 488 L386 488" marker-end="url(#seta)"/>
+  <text class="l" x="220" y="400" text-anchor="start">90 pontos</text>
+  <path class="seta" d="M610 488 L696 488" marker-end="url(#seta)"/>
+  <rect class="grupo" x="20" y="545" width="940" height="115" rx="10"/><text class="g" x="34" y="565">treino, uma vez · ./prisma.sh risco treinar</text>
+  <g class="rn"><rect x="40" y="585" width="200" height="56" rx="8"/><text class="t" x="140.0" y="609.0" text-anchor="middle">Gerador sintético</text><text class="s" x="140.0" y="628.0" text-anchor="middle">NeuralNetwork/src</text></g>
+  <g class="rn"><rect x="280" y="585" width="200" height="56" rx="8"/><text class="t" x="380.0" y="609.0" text-anchor="middle">Features sem hora</text><text class="s" x="380.0" y="628.0" text-anchor="middle">o extrato só tem a data</text></g>
+  <g class="rn"><rect x="520" y="585" width="200" height="56" rx="8"/><text class="t" x="620.0" y="609.0" text-anchor="middle">Treino</text><text class="s" x="620.0" y="628.0" text-anchor="middle">PyTorch ou scikit-learn</text></g>
+  <g class="dd"><rect x="760" y="585" width="180" height="56" rx="8"/><text class="t" x="850.0" y="609.0" text-anchor="middle">autoencoder.npz</text><text class="s" x="850.0" y="628.0" text-anchor="middle">~/.prisma/modelos</text></g>
+  <path class="seta" d="M240 613 L276 613" marker-end="url(#seta)"/>
+  <path class="seta" d="M480 613 L516 613" marker-end="url(#seta)"/>
+  <path class="seta" d="M720 613 L756 613" marker-end="url(#seta)"/>
+  <path class="seta" d="M940 613 L980 613 L980 268 L964 268" marker-end="url(#seta)"/>
+  <rect x="40" y="681" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#534AB7"/><text class="l" x="60" y="692">agente ou ferramenta MCP</text>
+  <rect x="256.0" y="681" width="14" height="14" rx="3" fill="#F1EFE8" stroke="#5F5E5A"/><text class="l" x="276.0" y="692">etapa em Python</text>
+  <rect x="409.0" y="681" width="14" height="14" rx="3" fill="#FAEEDA" stroke="#854F0B"/><text class="l" x="429.0" y="692">rede neural</text>
+  <rect x="534.0" y="681" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56"/><text class="l" x="554.0" y="692">dados na máquina</text>
+</svg>

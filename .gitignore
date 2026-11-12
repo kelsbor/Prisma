@@ -1,0 +1,18 @@
+# Ambiente Python e execução local
+.venv/
+.run/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Segredos e dados locais (nunca versionar)
+.env
+*.swp
+chaves.json
+*.db
+mlruns/
+
+# Sistema e ferramentas
+.DS_Store
+report.md
+.crewai/

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="590" viewBox="0 0 1000 590" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Modos de embeddings</title>
+  <desc>Com PRISMA_EMBEDDINGS=local, os vetores são calculados na máquina por um modelo multilíngue; com gemini, pela API do Google. Cada modo tem o próprio índice. Escrever a resposta depende só da GOOGLE_API_KEY.</desc>
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-size: 15px; font-weight: 600; }  .s { font-size: 12.5px; }  .l { font-size: 12px; fill: #5F5E5A; }
+      .g { font-size: 13px; font-weight: 600; fill: #5F5E5A; }
+      .ag rect { fill: #EEEDFE; stroke: #534AB7; } .ag .t { fill: #3C3489; } .ag .s { fill: #534AB7; }
+      .dd rect { fill: #E1F5EE; stroke: #0F6E56; } .dd .t { fill: #085041; } .dd .s { fill: #0F6E56; }
+      .nt rect { fill: #F1EFE8; stroke: #5F5E5A; } .nt .t { fill: #2C2C2A; } .nt .s { fill: #444441; }
+      .rn rect { fill: #FAEEDA; stroke: #854F0B; } .rn .t { fill: #633806; } .rn .s { fill: #854F0B; }
+      .ex rect { fill: #FFFFFF; stroke: #5F5E5A; stroke-dasharray: 6 4; } .ex .t { fill: #2C2C2A; } .ex .s { fill: #444441; }
+      .seta { stroke: #5F5E5A; stroke-width: 1.4; fill: none; }  .trac { stroke-dasharray: 6 4; }
+      .grupo { fill: none; stroke: #B4B2A9; stroke-dasharray: 4 4; }
+    </style>
+  </defs>
+  <rect width="1000" height="590" fill="#FFFFFF"/>
+  <g class="nt"><rect x="370" y="30" width="260" height="56" rx="8"/><text class="t" x="500.0" y="54.0" text-anchor="middle">Texto</text><text class="s" x="500.0" y="73.0" text-anchor="middle">pedaço da base ou pergunta</text></g>
+  <g class="nt"><rect x="110" y="140" width="280" height="56" rx="8"/><text class="t" x="250.0" y="173.0" text-anchor="middle">PRISMA_EMBEDDINGS=local</text></g>
+  <g class="nt"><rect x="610" y="140" width="280" height="56" rx="8"/><text class="t" x="750.0" y="173.0" text-anchor="middle">PRISMA_EMBEDDINGS=gemini</text></g>
+  <g class="nt"><rect x="110" y="240" width="280" height="56" rx="8"/><text class="t" x="250.0" y="264.0" text-anchor="middle">Modelo local (fastembed)</text><text class="s" x="250.0" y="283.0" text-anchor="middle">MiniLM multilíngue · 384 números</text></g>
+  <g class="ex"><rect x="610" y="240" width="280" height="56" rx="8"/><text class="t" x="750.0" y="264.0" text-anchor="middle">API do Gemini</text><text class="s" x="750.0" y="283.0" text-anchor="middle">gemini-embedding-001 · 3.072</text></g>
+  <g class="dd"><rect x="110" y="340" width="280" height="56" rx="8"/><text class="t" x="250.0" y="364.0" text-anchor="middle">Chroma</text><text class="s" x="250.0" y="383.0" text-anchor="middle">~/.prisma/rag/local</text></g>
+  <g class="dd"><rect x="610" y="340" width="280" height="56" rx="8"/><text class="t" x="750.0" y="364.0" text-anchor="middle">Chroma</text><text class="s" x="750.0" y="383.0" text-anchor="middle">~/.prisma/rag/gemini</text></g>
+  <path class="seta" d="M440 86 L440 112 L250 112 L250 136" marker-end="url(#seta)"/>
+  <path class="seta" d="M560 86 L560 112 L750 112 L750 136" marker-end="url(#seta)"/>
+  <path class="seta" d="M250 196 L250 236" marker-end="url(#seta)"/>
+  <path class="seta" d="M750 196 L750 236" marker-end="url(#seta)"/>
+  <path class="seta" d="M250 296 L250 336" marker-end="url(#seta)"/>
+  <path class="seta" d="M750 296 L750 336" marker-end="url(#seta)"/>
+  <rect class="grupo" x="300" y="425" width="400" height="112" rx="10"/><text class="g" x="314" y="445">independente do modo</text>
+  <g class="ex"><rect x="320" y="458" width="360" height="56" rx="8"/><text class="t" x="500.0" y="482.0" text-anchor="middle">Escrever a resposta</text><text class="s" x="500.0" y="501.0" text-anchor="middle">Gemini só com GOOGLE_API_KEY</text></g>
+  <rect x="40" y="551" width="14" height="14" rx="3" fill="#F1EFE8" stroke="#5F5E5A"/><text class="l" x="60" y="562">etapa em Python</text>
+  <rect x="193.0" y="551" width="14" height="14" rx="3" fill="#FFFFFF" stroke="#5F5E5A" stroke-dasharray="4 3"/><text class="l" x="213.0" y="562">fora da máquina ou opcional</text>
+  <rect x="430.0" y="551" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56"/><text class="l" x="450.0" y="562">dados na máquina</text>
+</svg>

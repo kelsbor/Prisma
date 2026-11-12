@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="640" viewBox="0 0 1000 640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Arquitetura do Prisma</title>
+  <desc>Quatro agentes MCP locais. Coletor, Especialista e Risco falam com o Agente de Armazenamento, o único que acessa o SQLite criptografado. O Especialista consulta o Chroma e, opcionalmente, o Gemini, e recebe o perfil do Agente de Risco, que usa a rede neural.</desc>
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t  { font-size: 15px; font-weight: 600; }
+      .s  { font-size: 12.5px; }
+      .l  { font-size: 12px; fill: #5F5E5A; }
+      .ag rect { fill: #EEEDFE; stroke: #534AB7; }  .ag .t { fill: #3C3489; } .ag .s { fill: #534AB7; }
+      .dd rect { fill: #E1F5EE; stroke: #0F6E56; }  .dd .t { fill: #085041; } .dd .s { fill: #0F6E56; }
+      .nt rect { fill: #F1EFE8; stroke: #5F5E5A; }  .nt .t { fill: #2C2C2A; } .nt .s { fill: #444441; }
+      .ex rect { fill: #FFFFFF; stroke: #5F5E5A; stroke-dasharray: 6 4; } .ex .t { fill: #2C2C2A; } .ex .s { fill: #444441; }
+      .seta { stroke: #5F5E5A; stroke-width: 1.4; fill: none; }
+      .trac { stroke-dasharray: 6 4; }
+    </style>
+  </defs>
+  <rect width="1000" height="640" fill="#FFFFFF"/>
+
+  <!-- linha 1: entradas e fora da máquina -->
+  <g class="nt"><rect x="40" y="30" width="240" height="64" rx="8"/>
+    <text class="t" x="160" y="56" text-anchor="middle">Extratos</text>
+    <text class="s" x="160" y="77" text-anchor="middle">CSV, TXT, XLSX, OFX, PDF, imagem</text></g>
+  <g class="nt"><rect x="380" y="30" width="240" height="64" rx="8"/>
+    <text class="t" x="500" y="56" text-anchor="middle">Pessoa</text>
+    <text class="s" x="500" y="77" text-anchor="middle">terminal, VS Code ou Claude</text></g>
+  <g class="ex"><rect x="720" y="30" width="240" height="64" rx="8"/>
+    <text class="t" x="840" y="56" text-anchor="middle">Gemini (opcional)</text>
+    <text class="s" x="840" y="77" text-anchor="middle">escreve as respostas</text></g>
+
+  <!-- linha 2: agentes -->
+  <g class="ag"><rect x="40" y="160" width="240" height="70" rx="8"/>
+    <text class="t" x="160" y="188" text-anchor="middle">Agente Coletor · 8001</text>
+    <text class="s" x="160" y="210" text-anchor="middle">lê, padroniza e confere extratos</text></g>
+  <g class="ag"><rect x="380" y="160" width="240" height="70" rx="8"/>
+    <text class="t" x="500" y="188" text-anchor="middle">Agente de Risco · 8003</text>
+    <text class="s" x="500" y="210" text-anchor="middle">indicadores + rede neural</text></g>
+  <g class="ag"><rect x="720" y="160" width="240" height="70" rx="8"/>
+    <text class="t" x="840" y="188" text-anchor="middle">Agente Especialista · 8002</text>
+    <text class="s" x="840" y="210" text-anchor="middle">RAG + resumo do mês</text></g>
+
+  <!-- linha 3 -->
+  <g class="ag"><rect x="355" y="330" width="290" height="70" rx="8"/>
+    <text class="t" x="500" y="358" text-anchor="middle">Agente de Armazenamento · 8000</text>
+    <text class="s" x="500" y="380" text-anchor="middle">único que acessa o banco</text></g>
+  <g class="dd"><rect x="720" y="330" width="240" height="70" rx="8"/>
+    <text class="t" x="840" y="358" text-anchor="middle">Chroma</text>
+    <text class="s" x="840" y="380" text-anchor="middle">índice vetorial · ~/.prisma/rag</text></g>
+
+  <!-- linha 4 -->
+  <g class="nt"><rect x="40" y="480" width="240" height="70" rx="8"/>
+    <text class="t" x="160" y="508" text-anchor="middle">prisma.sh</text>
+    <text class="s" x="160" y="530" text-anchor="middle">sobe, para e monitora os 4</text></g>
+  <g class="dd"><rect x="380" y="480" width="240" height="70" rx="8"/>
+    <text class="t" x="500" y="508" text-anchor="middle">SQLite + Fernet + HMAC</text>
+    <text class="s" x="500" y="530" text-anchor="middle">~/.prisma/dados.db</text></g>
+  <g class="dd"><rect x="720" y="480" width="240" height="70" rx="8"/>
+    <text class="t" x="840" y="508" text-anchor="middle">base_conhecimento/</text>
+    <text class="s" x="840" y="530" text-anchor="middle">37 materiais em JSONL</text></g>
+
+  <!-- setas -->
+  <line class="seta" x1="100" y1="94" x2="100" y2="156" marker-end="url(#seta)"/>
+  <path class="seta" d="M420 94 L420 125 L220 125 L220 156" marker-end="url(#seta)"/>
+  <line class="seta" x1="500" y1="94" x2="500" y2="156" marker-end="url(#seta)"/>
+  <path class="seta" d="M580 94 L580 125 L780 125 L780 156" marker-end="url(#seta)"/>
+  <line class="seta trac" x1="900" y1="160" x2="900" y2="98" marker-end="url(#seta)"/>
+
+  <path class="seta" d="M160 230 L160 365 L351 365" marker-end="url(#seta)"/>
+  <text class="l" x="255" y="356" text-anchor="middle">salvar_lote</text>
+
+  <line class="seta" x1="500" y1="230" x2="500" y2="326" marker-end="url(#seta)"/>
+  <text class="l" x="492" y="284" text-anchor="end">consultar_titular</text>
+
+  <path class="seta" d="M740 230 L740 282 L680 282 L680 365 L649 365" marker-end="url(#seta)"/>
+  <text class="l" x="672" y="300" text-anchor="end">consultar_titular</text>
+
+  <line class="seta" x1="718" y1="195" x2="624" y2="195" marker-end="url(#seta)"/>
+  <text class="l" x="670" y="186" text-anchor="middle">perfil de risco</text>
+
+  <line class="seta" x1="900" y1="230" x2="900" y2="326" marker-end="url(#seta)"/>
+
+  <line class="seta" x1="500" y1="400" x2="500" y2="476" marker-end="url(#seta)"/>
+  <line class="seta" x1="840" y1="480" x2="840" y2="404" marker-end="url(#seta)"/>
+  <text class="l" x="850" y="446" text-anchor="start">indexar</text>
+
+  <!-- legenda -->
+  <g transform="translate(40,592)">
+    <rect x="0" y="-11" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#534AB7"/>
+    <text class="l" x="20" y="0">agente MCP (porta local)</text>
+    <rect x="210" y="-11" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56"/>
+    <text class="l" x="230" y="0">dados na máquina</text>
+    <rect x="380" y="-11" width="14" height="14" rx="3" fill="#FFFFFF" stroke="#5F5E5A" stroke-dasharray="4 3"/>
+    <text class="l" x="400" y="0">fora da máquina</text>
+    <text class="l" x="530" y="0">Setas com nome: ferramentas MCP · só em 127.0.0.1, com token</text>
+  </g>
+</svg>

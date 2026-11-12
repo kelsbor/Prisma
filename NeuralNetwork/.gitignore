@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.venv/
+.ipynb_checkpoints/
+
+# Dados e artefatos locais: não versionar dados financeiros/sintéticos nem checkpoints.
+data/generated/
+data/local/
+artifacts/models/
+results/
+mlruns/
+mlartifacts/
+*.db
+*.db-shm
+*.db-wal
+
+# Pacotes para upload no Colab são reprodutíveis via tools/build_colab_zip.py.
+/projeto.zip

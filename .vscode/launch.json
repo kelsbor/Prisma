@@ -1,0 +1,193 @@
+{
+  "version": "0.2.0",
+  "inputs": [
+    {
+      "id": "titular",
+      "type": "promptString",
+      "description": "ID do titular (use dados fictícios em testes)",
+      "default": "000.000.000-00"
+    },
+    {
+      "id": "pergunta",
+      "type": "promptString",
+      "description": "Pergunta para o especialista",
+      "default": "O que acontece se eu pagar só o mínimo da fatura?"
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Coletor: analisar extratos_ficticios/",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "coletor",
+      "args": [
+        "analisar"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Coletor: analisar arquivo aberto",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "coletor",
+      "args": [
+        "analisar",
+        "${file}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Coletor: importar extratos_ficticios/",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "coletor",
+      "args": [
+        "importar",
+        "--titular",
+        "${input:titular}"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Armazenamento: servidor HTTP local",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "armazenamento",
+      "args": [
+        "--http"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Especialista: indexar base",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "especialista",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "indexar"
+      ]
+    },
+    {
+      "name": "Especialista: status da base",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "especialista",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "status"
+      ]
+    },
+    {
+      "name": "Especialista: buscar na base",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "especialista",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "buscar",
+        "${input:pergunta}"
+      ]
+    },
+    {
+      "name": "Especialista: perguntar",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "especialista",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "perguntar",
+        "${input:pergunta}",
+        "--titular",
+        "${input:titular}"
+      ]
+    },
+    {
+      "name": "Risco: treinar rede neural",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "risco",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "treinar"
+      ]
+    },
+    {
+      "name": "Risco: perfil de risco",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "risco",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "perfil",
+        "--titular",
+        "${input:titular}"
+      ]
+    },
+    {
+      "name": "Testes",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "-v"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}
