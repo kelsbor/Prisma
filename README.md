@@ -452,7 +452,7 @@ Os materiais pertencem às instituições que os publicaram. Confirme se a licen
 
 ### Requisitos
 
-- Linux (o projeto é usado no Ubuntu 20.04; o `prisma.sh` usa bash e `sha256sum`)
+- Linux (o projeto é usado no Ubuntu 20.04; o `prisma.sh` usa bash e `sha256sum`). No Windows, veja [No Windows](#no-windows).
 - **Python 3.10 ou mais novo.** No Ubuntu 20.04 o `python3` é o 3.8; o `prisma.sh` procura sozinho um `python3.12`, `python3.11` ou `python3.10`.
 - Git e cerca de 1,5 GB livres (dependências, modelo local de embeddings e índice)
 - Opcional: chave do Gemini, criada em [aistudio.google.com](https://aistudio.google.com)
@@ -529,6 +529,68 @@ python -m risco treinar
 ```
 
 Com o venv ativado, todo comando `./prisma.sh <agente> ...` deste README também funciona como `python -m <agente> ...`.
+
+### No Windows
+
+O jeito recomendado é o **WSL2**, que roda um Ubuntu dentro do Windows: o `prisma.sh` e todos os comandos deste README funcionam igual. Rodar direto no Windows também dá, mas sem o `prisma.sh` e sem os atalhos do `.vscode/`.
+
+**Opção 1: WSL2 (recomendado)**
+
+1. No PowerShell **como administrador**, instale o WSL com Ubuntu e reinicie o computador:
+   ```powershell
+   wsl --install -d Ubuntu
+   ```
+2. Abra o **Ubuntu** pelo menu Iniciar, crie o usuário e instale o necessário:
+   ```bash
+   sudo apt update && sudo apt install -y python3-venv python3-pip git unzip
+   ```
+3. Clone o projeto **dentro do Ubuntu** (na pasta pessoal `~`, não em `/mnt/c/...`, que é bem mais lento) e siga o [passo a passo](#passo-a-passo) normalmente:
+   ```bash
+   cd ~
+   git clone https://github.com/kelsbor/Prisma.git
+   cd Prisma
+   ./prisma.sh iniciar
+   ```
+
+Os serviços ficam acessíveis no Windows pelos mesmos endereços (`http://127.0.0.1:8000` a `8003`). Para editar, instale a extensão **WSL** no VS Code e rode `code .` dentro da pasta do projeto, no Ubuntu.
+
+**Opção 2: direto no Windows (PowerShell)**
+
+Requer o Python 3.10 ou mais novo, de [python.org](https://www.python.org/downloads/) (marque "Add python.exe to PATH" na instalação), e o Git.
+
+```powershell
+git clone https://github.com/kelsbor/Prisma.git
+cd Prisma
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+Se o PowerShell bloquear o `Activate.ps1`, rode uma vez `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` e tente de novo.
+
+Depois, use os comandos `python -m <agente> ...` deste README, sempre a partir da pasta do projeto:
+
+```powershell
+python -m coletor importar --titular 000.000.000-00
+python -m especialista indexar
+python -m risco treinar
+python -m risco perfil --titular 000.000.000-00
+python -m especialista perguntar "Como saio do rotativo?" --titular 000.000.000-00
+python -m pytest
+```
+
+Sem o `prisma.sh`, cada agente que precisa do Armazenamento abre o seu por conta própria, e tudo funciona. Para subir os agentes como serviços, abra um terminal para cada um:
+
+```powershell
+python -m armazenamento --http                    # terminal 1
+$env:ARMAZENAMENTO_URL = "http://127.0.0.1:8000"  # nos terminais 2 a 4, antes do comando
+python -m coletor servidor --http                 # terminal 2
+python -m especialista servidor --http            # terminal 3
+python -m risco servidor --http                   # terminal 4
+```
+
+No Windows, o `.venv` fica em `.venv\Scripts\python.exe`, e não em `.venv/bin/python`. Por isso, troque esse caminho no `.vscode/settings.json` e no `.vscode/mcp.json` se for usar o VS Code direto no Windows.
 
 ### VS Code e Claude Code
 
