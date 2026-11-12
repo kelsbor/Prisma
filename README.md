@@ -15,11 +15,13 @@ O projeto parte de uma pergunta: a inteligência artificial vai **substituir** o
   - [Armazenamento](#agente-de-armazenamento) · [Coletor](#agente-coletor) · [Especialista](#agente-especialista) · [Risco](#agente-de-risco)
 - [Modos de embeddings](#modos-de-embeddings)
 - [Prompt enviado ao Gemini](#prompt-enviado-ao-gemini)
+- [De onde vêm os dados](#de-onde-vêm-os-dados)
 - [Base de conhecimento](#base-de-conhecimento)
 - [Como inicializar o projeto](#como-inicializar-o-projeto)
 - [Todos os comandos](#todos-os-comandos)
 - [Configuração (.env)](#configuração-env)
 - [Segurança e LGPD](#segurança-e-lgpd)
+- [Guardrails](#guardrails)
 - [Testes](#testes)
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Problemas comuns](#problemas-comuns)
@@ -388,6 +390,46 @@ Sem a chave (ou sem internet, ou com a cota esgotada), a saída é real e determ
 }
 ```
 
+## De onde vêm os dados
+
+O projeto usa três tipos de dados, e **nenhum deles é de uma pessoa real**.
+
+### Extratos fictícios (`extratos_ficticios/`)
+
+São extratos inventados pela equipe para testar o Coletor, vindos da primeira versão do projeto (`agente-simples/dados/`, usada no notebook do Colab). Representam a conta de um titular fictício (`000.000.000-00`) de 1º de agosto a 26 de outubro de 2026: salário, aluguel, mercado, delivery, assinaturas, fatura do cartão, PIX, juros de cheque especial e aplicações.
+
+A mesma conta aparece em três formatos, para testar cada caminho de leitura do Coletor e a consolidação entre arquivos:
+
+| Arquivo | Formato | Como o Coletor lê | Transações |
+|---|---|---|---|
+| `extrato-ficticio.txt` | CSV com `;` e vírgula decimal, como o Excel brasileiro exporta | leitura local | 77 |
+| `extrato-ficticio.pdf` | PDF com texto, 2 páginas, ponto decimal | pypdf (ou DocStrange, se configurado) | 79 |
+| `extrato-ficticio.png` | imagem de extrato (1760 × 5300 px) | só com DocStrange (OCR) | — |
+
+Consolidados, os arquivos dão **79 transações únicas, com líquido de −R$ 341,44**. As duas que faltam no TXT (uma compra repetida e o estorno dela) mostram como o Coletor aponta diferenças entre fontes.
+
+Os extratos têm problemas plantados de propósito, para testar os alertas do Coletor e a rede neural do Agente de Risco:
+
+| Data | Lançamento | O que testa |
+|---|---|---|
+| 19/08 | `PAG*IFOD` -29,90 | erro de digitação (`descricao_parecida_com:PAG*IFOOD`) |
+| 03/09 | `PAG*IFOOD` -48,70, duas vezes | cobrança repetida (`repetido_no_mesmo_dia`) |
+| 04/09 | `PIX ENVIADO - J S` -0,01 | PIX de teste (`valor_irrisorio`) |
+| 14/09 e 17/09 | `ESTORNO ...` | estorno ligado ao débito original (`estorna:<data>`) |
+| 06/10 | `JUROS CHEQUE ESPECIAL` e `IOF S/ SALDO DEVEDOR` | crédito caro no perfil de risco |
+
+### Dados sintéticos da rede neural (`NeuralNetwork/`)
+
+A rede neural do Agente de Risco não treina com os extratos acima, que são poucos. Ela treina com dados gerados pelo `NeuralNetwork/src/gerar_dados_sinteticos.py`, do projeto de redes da equipe: usuários com perfis diferentes (renda, hábitos, categorias), anos de transações e anomalias injetadas com rótulo (fraude, compra atípica, cobrança duplicada, gasto acima do padrão, conta inflada). O `./prisma.sh risco treinar` gera 200 usuários e guarda tudo em `~/.prisma/risco_dados/`. Detalhes em [`NeuralNetwork/docs/RELATORIO_TECNICO.md`](NeuralNetwork/docs/RELATORIO_TECNICO.md).
+
+### Base de conhecimento (`base_conhecimento/`)
+
+Materiais públicos de educação financeira (BCB, CVM, FEBRABAN, Senacon, Enap e outros), extraídos de PDF. Veja [Base de conhecimento](#base-de-conhecimento).
+
+### E os extratos reais?
+
+O Coletor lê extratos reais nos mesmos formatos (`./prisma.sh coletor importar --titular <ID> ~/Downloads/extrato.ofx`), e tudo fica criptografado em `~/.prisma`. Mas, enquanto o projeto estiver em teste, **use só dados fictícios**: o Gemini recebe o resumo do mês quando há titular, e o DocStrange no modo nuvem envia o arquivo inteiro para fora do Brasil. CSV, TXT, XLSX e OFX são sempre lidos localmente.
+
 ## Base de conhecimento
 
 São 37 materiais em `base_conhecimento/`, um JSONL por material, extraídos de PDFs públicos (OCR ou texto), de instituições como BCB, CVM, FEBRABAN, Senacon e Enap. Cada linha é uma página:
@@ -513,6 +555,7 @@ Todos rodam na raiz do projeto. `./prisma.sh <agente> ...` usa o Python do `.ven
 | `./prisma.sh parar` | para todos |
 | `./prisma.sh reiniciar` | para e sobe de novo |
 | `./prisma.sh status` | mostra quem está no ar |
+| `./prisma.sh liberar` | derruba agentes do Prisma que ocupam as portas 8000 a 8003, inclusive os iniciados de outra pasta |
 | `./prisma.sh logs` | acompanha os logs de todos (`Ctrl+C` sai); ficam em `.run/` |
 | `./prisma.sh logs <agente>` | log de um agente: `armazenamento`, `coletor`, `especialista` ou `risco` |
 | `./prisma.sh importar <TITULAR>` | importa `extratos_ficticios/` no Armazenamento |
@@ -637,6 +680,65 @@ Onde fica cada coisa em `~/.prisma`:
 
   Nesses casos, **use só dados fictícios**. CSV, TXT, XLSX e OFX são sempre lidos localmente, e a rede neural de risco roda na máquina.
 
+## Guardrails
+
+Os guardrails são as proteções que limitam o que os agentes podem fazer e dizer. Eles estão em quatro camadas.
+
+### 1. No prompt do Gemini (`especialista/agente.py`)
+
+| Guardrail | O que impede |
+|---|---|
+| Usar só os números de DADOS DO USUÁRIO | o Gemini inventar ou calcular valores |
+| Explicar conceitos só com os TRECHOS DE REFERÊNCIA; sem trecho, dizer que não há conteúdo revisado | resposta "de memória", possivelmente errada |
+| Citar fonte e página | informação sem origem verificável |
+| Seguir as atualizações da equipe quando os trechos se contradizem | repetir regra desatualizada (ex.: mínimo de 15% do cartão) |
+| Avisar quando um trecho cita regra ou lei com data | apresentar material antigo como atual |
+| Não recomendar produtos financeiros específicos | recomendação de investimento |
+| Não julgar gastos | tom de culpa |
+| Usar o perfil de risco só para o tom; com risco alto, acolher primeiro | alarmismo e expor o score como nota |
+| Transações atípicas são perguntas, nunca acusações | acusar a pessoa de fraude ou erro |
+
+### 2. Antes de chegar ao Gemini (Python)
+
+| Guardrail | Onde |
+|---|---|
+| Todos os números (saldo, gastos, score) são calculados em Python, nunca pelo LLM | `especialista/dados.py`, `risco/perfil.py` |
+| Filtro de nota mínima: trechos pouco relevantes não vão para o prompt | `PRISMA_NOTA_MINIMA` |
+| Vai só o resumo do mês, nunca as transações uma a uma | `especialista/dados.py` |
+| Sem chave, sem internet ou com a cota esgotada, devolve os trechos em vez de falhar | `especialista/agente.py` |
+| A base é curada: backups, cópias e páginas marcadas ficam de fora; correções entram como arquivo datado | `especialista/rag.py`, `atualizacoes-da-equipe.jsonl` |
+| O Coletor nunca corrige dados sozinho: problemas viram alertas | `coletor/qualidade.py` |
+| O score de risco é explicável: cada componente tem teto e explicação | `risco/perfil.py` |
+
+### 3. Dados e segurança
+
+| Guardrail | Onde |
+|---|---|
+| Só o Agente de Armazenamento acessa o banco | arquitetura |
+| Transações criptografadas (Fernet); titular guardado só como HMAC | `armazenamento/app.py` |
+| A mesma transação não entra duas vezes | índice único em `chave_hash` |
+| Exclusão total do titular (LGPD, art. 18) | `eliminar_titular` |
+| Serviços só em `127.0.0.1`, com token | `comum/servidor_http.py` |
+| Chaves fora do repositório, com permissão 600 | `~/.prisma/chaves.json` |
+| Limites nos parâmetros: lote de até 500, `k` até 10, `limite` até 50 | ferramentas MCP |
+| `.gitignore` impede enviar `.env`, `.venv`, `chaves.json` e bancos | `.gitignore` |
+
+### 4. Na operação
+
+| Guardrail | Onde |
+|---|---|
+| Testes sem internet do fluxo de ponta a ponta, da RAG e do Agente de Risco | `tests/` |
+| O `prisma.sh` confere se está na pasta certa e avisa quando falta a chave | `prisma.sh` |
+| O `prisma.sh` só derruba processos que são agentes do Prisma; outro programa numa porta não é tocado | `prisma.sh` |
+
+### O que ainda falta
+
+- **Conferir a resposta do Gemini.** Nada verifica se ele obedeceu às regras: se citou um número que não estava nos dados, se a fonte citada existe, se recomendou um produto.
+- **Defesa contra prompt injection.** Uma pergunta como "ignore as regras anteriores" vai direto para o prompt. Os trechos da base também entram sem filtro, o que hoje só é aceitável porque a base é curada pela equipe.
+- **Titular vindo do login.** As ferramentas aceitam qualquer `titular_id`. Num app real, o titular precisa vir da autenticação, e o modelo nunca deve escolher de quem são os dados.
+- **Filtro de tema e de conteúdo sensível.** Perguntas fora de finanças, ou de alguém em sofrimento por causa de dívidas, não têm tratamento próprio além do tom acolhedor. Um encaminhamento para canais de apoio, como o CVV (188), seria importante para esse público.
+- **Limite de uso.** Nada impede chamadas em excesso ao Gemini.
+
 ## Testes
 
 ```bash
@@ -707,7 +809,7 @@ Os arquivos da última linha são de uma versão anterior do projeto e não são
 | `Chroma requires sqlite3 >= 3.35.0` | SQLite antigo do sistema. O pacote `pysqlite3-binary` do `requirements.txt` resolve; rode `./prisma.sh reiniciar` para instalá-lo. |
 | `GOOGLE_API_KEY não definida` no `buscar` ou no `indexar` | Coloque a chave no `.env` ou use `PRISMA_EMBEDDINGS=local`. Atenção: a variável é `PRISMA_EMBEDDINGS`, não `PRISMA_MODELO_EMBEDDING`. |
 | `Could not load model ...` no modo local | A rede bloqueou o download do Hugging Face. Rode o `indexar` uma vez em outra rede. |
-| `A porta 800X já está em uso` | Outra cópia do projeto está no ar. Rode `./prisma.sh parar` nela ou mude `PORTA_*`. |
+| `A porta 800X está com outro programa` | O `iniciar` já derruba sozinho agentes do Prisma de outra pasta. Se a porta estiver com outro programa, ele não é tocado: pare-o ou mude `PORTA_*`. |
 | `Rede neural indisponível: modelo não treinado` | Rode `./prisma.sh risco treinar` uma vez. |
 
 ## Limitações conhecidas

@@ -5,6 +5,7 @@
 #   ./prisma.sh parar       para todos
 #   ./prisma.sh reiniciar   para e sobe de novo
 #   ./prisma.sh status      mostra quem está no ar
+#   ./prisma.sh liberar     derruba agentes do Prisma que ocupam as portas (ex.: de outra pasta)
 #   ./prisma.sh logs [agente]  acompanha os logs (armazenamento, coletor, especialista ou risco)
 #   ./prisma.sh importar TITULAR   importa os extratos de extratos_ficticios/ no Armazenamento
 #   ./prisma.sh indexar     atualiza o índice da base de conhecimento (Gemini ou modelo local)
@@ -127,14 +128,52 @@ rodando()  { local p; p="$(pid_de "$1")"; [[ -n "$p" ]] && kill -0 "$p" 2>/dev/n
 saudavel() { "$PY" -c "import sys,urllib.request; urllib.request.urlopen(sys.argv[1], timeout=2)" \
                "http://127.0.0.1:$(porta_de "$1")/health" >/dev/null 2>&1; }
 
+pid_da_porta() {   # PID de quem escuta na porta (só processos do próprio usuário; lê o /proc, sem ss/lsof)
+  python3 - "$1" <<'PY' 2>/dev/null
+import os, sys
+porta, inodes = int(sys.argv[1]), set()
+for arq in ("/proc/net/tcp", "/proc/net/tcp6"):
+    try:
+        for linha in open(arq).readlines()[1:]:
+            c = linha.split()
+            if c[3] == "0A" and int(c[1].rsplit(":", 1)[1], 16) == porta:
+                inodes.add(f"socket:[{c[9]}]")
+    except OSError:
+        pass
+for pid in filter(str.isdigit, os.listdir("/proc")):
+    try:
+        if any(os.readlink(f"/proc/{pid}/fd/{fd}") in inodes for fd in os.listdir(f"/proc/{pid}/fd")):
+            print(pid)
+            break
+    except OSError:
+        pass
+PY
+}
+
+liberar_porta() {   # derruba quem ocupa a porta do agente, mas só se for um agente do Prisma
+  local nome="$1" porta pid cmd
+  porta="$(porta_de "$nome")"
+  pid="$(pid_da_porta "$porta")"
+  [[ -n "$pid" ]] || return 0
+  cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)"
+  if [[ "$cmd" != *"-m $nome"* ]]; then
+    vermelho "  A porta $porta está com outro programa (pid $pid: ${cmd:-desconhecido}). Não mexi nele."
+    vermelho "  Pare-o ou mude PORTA_${nome^^}."
+    return 1
+  fi
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+  kill -0 "$pid" 2>/dev/null && kill -9 "$pid"
+  amarelo "  porta $porta liberada (havia um $nome antigo no ar, pid $pid)"
+}
+
 subir() {
   local nome="$1" porta; porta="$(porta_de "$nome")"
   if rodando "$nome"; then
     echo "  $nome já está no ar (porta $porta)"; return
   fi
-  if saudavel "$nome"; then
-    vermelho "  A porta $porta já está em uso por outro processo. Pare-o ou mude PORTA_${nome^^}."
-    return 1
+  if saudavel "$nome" || [[ -n "$(pid_da_porta "$porta")" ]]; then
+    liberar_porta "$nome" || return 1
   fi
   # shellcheck disable=SC2046
   nohup "$PY" -m $(comando_de "$nome") >> "$RUN/$nome.log" 2>&1 &
@@ -187,6 +226,13 @@ else:
 parar() {
   echo "Parando os agentes..."
   for (( i=${#AGENTES[@]}-1; i>=0; i-- )); do descer "${AGENTES[i]}"; done   # Armazenamento por último
+  liberar >/dev/null || true             # agentes do Prisma que sobraram de outra pasta
+}
+
+liberar() {
+  local falhou=0
+  for a in "${AGENTES[@]}"; do liberar_porta "$a" || falhou=1; done
+  return "$falhou"
 }
 
 status() {
@@ -210,7 +256,8 @@ logs() {
 case "${1:-iniciar}" in
   iniciar)   iniciar ;;
   parar)     parar ;;
-  reiniciar) parar; iniciar ;;
+  reiniciar|reinicio) parar; iniciar ;;
+  liberar)   liberar && verde "Portas ${PORTA_ARMAZENAMENTO} a ${PORTA_RISCO} livres." ;;
   status)    status ;;
   logs)      logs "${2:-}" ;;
   importar)
@@ -224,5 +271,5 @@ case "${1:-iniciar}" in
     saudavel armazenamento || unset ARMAZENAMENTO_URL   # sem o serviço no ar, o agente abre o Armazenamento por stdio
     agente="$1"; shift
     "$PY" -m "$agente" "$@" ;;
-  *)         sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *)         sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
