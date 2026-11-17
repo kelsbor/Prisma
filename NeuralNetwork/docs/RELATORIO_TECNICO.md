@@ -136,6 +136,12 @@ O conjunto é dividido cronologicamente, não por sorteio aleatório. Na base de
 
 Com 200 usuários, os runs registram 3.600 exemplos de treino, 1.200 de validação e 1.200 de teste. A média e o desvio-padrão usados na padronização são calculados somente no treino, o que evita usar estatísticas do futuro no pré-processamento.
 
+Na padronização usada aqui, cada valor é transformado em `z = (x - média_do_treino) / desvio_padrão_do_treino`. Essa transformação linear, por si só, **não perde informação**: conhecendo a média e o desvio usados, é possível voltar à escala original. O alvo da previsão também é padronizado e depois desfeito para converter as previsões de volta para reais.
+
+Antes disso, os gastos da previsão são divididos pela renda média do usuário; essa normalização relativa reduz diferenças de escala entre usuários. A feature `log(renda média)` preserva informação sobre o nível de renda, e a conversão final usa a renda de referência para retornar a previsão a reais. Isso é diferente de normalizar cada vetor para norma unitária, operação que removeria sua magnitude — possivelmente relevante para gastos.
+
+Normalização min–max também não elimina informação se os limites forem guardados e não houver clipping. Já clipping satura valores extremos e pode apagar o quanto uma observação excedeu o limite. No pipeline de anomalias as features são limitadas a `[-10, 10]`: isso impede extremos de dominar o treino, mas pode reduzir diferenças entre valores muito atípicos. Portanto, o pré-processamento pode afetar o resultado; neste projeto, a padronização é reversível, enquanto o clipping é uma escolha intencional com esse trade-off.
+
 Esse split mede previsão futura **para usuários já conhecidos no histórico**. Não mede generalização para novos usuários, pois os mesmos usuários aparecem em períodos diferentes.
 
 ---
@@ -181,9 +187,15 @@ A MLP é uma rede feedforward de regressão:
 
 A saída tem uma unidade para cada categoria; não há ativação final, pois a rede prevê números contínuos. A arquitetura tem **10.032 parâmetros** na previsão do próximo mês e **12.080** na projeção parcial.
 
-Configurações padrão: AdamW, taxa de aprendizado `0,001`, weight decay `0,001`, lote de 256 e até 200 épocas. A execução de treino calcula a perda, faz backpropagation e atualiza os pesos. A validação não atualiza os pesos: ela determina o melhor checkpoint e controla o *early stopping*, com paciência de 15 épocas.
+O vetor de entrada tem 115 ou 147 valores — não apenas as 16 categorias de saída —, portanto a largura das camadas diminui: `115/147 → 64 → 32 → 16`. A escolha de duas camadas ocultas com 64 e 32 unidades é um funil simples para transformar as features antes das 16 previsões. Esses tamanhos e o Dropout de 0,1 são escolhas de configuração, não resultados de uma busca sistemática por arquiteturas. Os experimentos não permitem afirmar que sejam ótimos; seriam necessários testes com larguras alternativas, comparadas na mesma validação temporal.
+
+Nos runs completos, a MLP usou AdamW, taxa de aprendizado `0,001`, weight decay `0,001` e lote de 256. O learning rate `0,001` é o padrão definido no código e foi mantido em todas as runs; não foi feita uma varredura para demonstrar que seja o melhor valor. A validação não atualiza os pesos: ela determina o melhor checkpoint e controla o *early stopping*. O limite era 200 épocas, com paciência de 15. As seis execuções completas terminaram entre **121 e 141 épocas**, antes do limite, por estagnação da perda de validação. Com 3.600 exemplos de treino e lote 256, cada época corresponde a cerca de 15 lotes e, portanto, cerca de 15 atualizações dos pesos. O tamanho do lote afeta quantas atualizações ocorrem por época, mas não define quantas épocas o treino deve executar.
 
 Nos runs registrados, a previsão mensal usa MSE e a projeção do dia 15 usa L1. MSE penaliza mais fortemente erros grandes; L1 é menos sensível a esses erros e se relaciona mais diretamente ao erro absoluto usado em WAPE.
+
+As curvas abaixo mostram a média e o desvio-padrão das três seeds completas. Para cada tarefa, são exibidas as épocas comuns às três execuções, pois o *early stopping* encerrou cada seed em um momento diferente.
+
+![Curvas de aprendizagem da MLP, agregadas por seed](graficos_mlflow/aprendizagem_mlp.png)
 
 ### 5.2 Autoencoder de anomalias
 
@@ -195,9 +207,15 @@ Com horário, o autoencoder recebe 29 valores e usa a arquitetura:
 
 O vetor de 6 valores é o **gargalo**: a rede precisa comprimir a transação e reconstruí-la. As camadas escondidas usam ReLU; a saída é linear, pois reconstrói features padronizadas. A versão sem horário tem 27 entradas e saídas.
 
-O alvo é o próprio vetor de entrada. O treino minimiza o MSE entre a transação original e sua reconstrução, com Adam, taxa de aprendizado `0,001`, weight decay `1e-5`, lote de 1.024 e até 60 épocas. O código também tem uma variante *denoising*: adiciona ruído gaussiano à entrada e pede que a rede reconstrua o vetor original.
+O alvo é o próprio vetor de entrada. O treino minimiza o MSE entre a transação original e sua reconstrução, com Adam, taxa de aprendizado `0,001`, weight decay `1e-5` e lote de 1.024. A primeira camada expande ligeiramente 29 entradas para 32 unidades antes da compressão; essa largura e o gargalo de 6 são escolhas heurísticas mantidas nas runs, não parâmetros demonstrados como ótimos por uma busca. Sem horário, o modelo tem 27 entradas/saídas e 3.073 parâmetros; com horário, 3.203.
+
+Nas nove runs completas (três variantes × três seeds), o limite foi 60 épocas e a paciência 8. Todas chegaram às 60 épocas; o *early stopping* não encerrou essas execuções antes do limite. Portanto, 60 épocas é o teto usado, não uma convergência demonstrada pelo experimento. Com 111.446 exemplos de treino e lote 1.024, isso representa cerca de 109 lotes por época. O learning rate `0,001` também é o padrão do script e não foi comparado com outros valores.
+
+O código também tem uma variante *denoising*: adiciona ruído gaussiano à entrada e pede que a rede reconstrua o vetor original.
 
 Depois, o erro médio quadrático de reconstrução por transação vira um score: quanto maior, mais suspeita a transação. O modelo não classifica diretamente “fraude” ou “normal”. O gargalo pode ajudar a impedir a simples cópia da entrada, mas a escolha de arquitetura e a mistura de anomalias no treino influenciam quais padrões a rede aprende a reconstruir.
+
+![Curvas de aprendizagem dos autoencoders, agregadas por seed](graficos_mlflow/aprendizagem_autoencoder.png)
 
 ### 5.3 Baselines
 
@@ -228,6 +246,8 @@ O README também anuncia 30 testes automáticos de integridade do dataset e expe
 
 O notebook do Colab está sem outputs e sem células executadas. Já o banco legado `results/local/ml_results/mlflow.db` contém 30 runs finalizados, mas esses resultados não demonstram que todas as etapas do orquestrador foram concluídas.
 
+As médias e desvios-padrão apresentados adiante usam as **runs completas**: três seeds para cada uma das duas tarefas da MLP e para cada uma das três variantes do autoencoder. O banco também contém runs rápidos de autoencoder e execuções repetidas de baselines; os runs rápidos não entram nas médias.
+
 ### 6.2 Qual base foi realmente usada
 
 Os runs de modelos apontam para a base legada de **200 usuários**, preservada em `data/local/legacy-smoke-200/transactions.csv`; o hash registrado no MLflow corresponde a esse arquivo. Isso também é consistente com os 3.600 exemplos de treino da MLP.
@@ -247,6 +267,8 @@ Os resultados são relativamente estáveis entre seeds, então a diferença não
 
 Os erros variam por categoria. Gastos recorrentes, como telecomunicações e contas, tendem a ser mais previsíveis. Categorias variáveis ou esparsas, como viagens, lazer e compras, são mais difíceis. No teste de uma seed, a MLP mensal teve WAPE de 1,611 em viagens; esse valor pode superar 1 quando o erro absoluto total excede o gasto real total da categoria.
 
+![WAPE da MLP e dos baselines, com a variação entre as três seeds](graficos_mlflow/comparacao_previsao_wape.png)
+
 ### 6.4 Anomalias: comparação global
 
 | Método ou variante | ROC-AUC | PR-AUC | Recall@1% |
@@ -264,6 +286,10 @@ Como a prevalência de anomalias no teste é 0,98%, um classificador aleatório 
 O horário melhora principalmente a PR-AUC do autoencoder em relação à variante sem hora. O ruído de *denoising* não mostrou melhora consistente na média dos três seeds. Isso sugere que a variante pode ajudar em algumas seeds ou tipos de anomalia, mas não há evidência suficiente para considerá-la superior.
 
 Por tipo de anomalia, o autoencoder identificou cobranças duplicadas com AUC próxima de 1,0 e fraudes com AUC média próxima de 0,987. Foi mais fraco para gastos acima do padrão, com AUC média de cerca de 0,589. Esse tipo parece especialmente difícil para o autoencoder, embora o z-score do valor seja muito forte nesse caso. Ou seja, diferentes detectores capturam diferentes formas de desvio.
+
+O gráfico apresenta as médias e desvios-padrão das três seeds para cada variante PyTorch; os baselines aparecem como uma única execução de referência.
+
+![ROC-AUC e PR-AUC dos detectores de anomalias](graficos_mlflow/comparacao_anomalias.png)
 
 **Atenção à métrica Recall@1%:** o código calcula essa métrica escolhendo o percentil de 99% dos scores no próprio teste. Ela responde “quantas anomalias aparecem entre o 1% de maiores scores?” e não mede a aplicação de um limiar fixo obtido na validação. Separadamente, o treinador seleciona um limiar no percentil de 99% da validação; nos runs com hora, a precisão média nesse limiar foi aproximadamente 34,5% e o recall, 41,3%. Isso indica que a maioria dos alertas ainda seria falso positivo nessa configuração.
 
