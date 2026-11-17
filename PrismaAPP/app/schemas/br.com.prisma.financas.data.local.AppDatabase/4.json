@@ -1,0 +1,388 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "0d7b7c258624333abc155d11a609ea6c",
+    "entities": [
+      {
+        "tableName": "item_dim",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `connectorName` TEXT, `connectorImageUrl` TEXT, `status` TEXT, `executionStatus` TEXT, `lastUpdatedAt` INTEGER, `nextAutoSyncAt` INTEGER, `consentExpiresAt` INTEGER, `errorCode` TEXT, `lastSyncAt` INTEGER, `bankName` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectorName",
+            "columnName": "connectorName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "connectorImageUrl",
+            "columnName": "connectorImageUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "executionStatus",
+            "columnName": "executionStatus",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastUpdatedAt",
+            "columnName": "lastUpdatedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nextAutoSyncAt",
+            "columnName": "nextAutoSyncAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "consentExpiresAt",
+            "columnName": "consentExpiresAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "errorCode",
+            "columnName": "errorCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastSyncAt",
+            "columnName": "lastSyncAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bankName",
+            "columnName": "bankName",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "account_dim",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `itemId` TEXT NOT NULL, `type` TEXT NOT NULL, `subtype` TEXT, `name` TEXT NOT NULL, `numberMasked` TEXT, `balanceCents` INTEGER NOT NULL, `currencyCode` TEXT NOT NULL, `creditLimitCents` INTEGER, `availableLimitCents` INTEGER, `balanceDueDateEpochDay` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subtype",
+            "columnName": "subtype",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "numberMasked",
+            "columnName": "numberMasked",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "balanceCents",
+            "columnName": "balanceCents",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditLimitCents",
+            "columnName": "creditLimitCents",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "availableLimitCents",
+            "columnName": "availableLimitCents",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "balanceDueDateEpochDay",
+            "columnName": "balanceDueDateEpochDay",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_account_dim_itemId",
+            "unique": false,
+            "columnNames": [
+              "itemId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_account_dim_itemId` ON `${TABLE_NAME}` (`itemId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "transaction_fact",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `dateEpochDay` INTEGER NOT NULL, `dateTimeMillis` INTEGER NOT NULL, `description` TEXT NOT NULL, `descriptionRaw` TEXT, `amountCents` INTEGER NOT NULL, `rawAmountCents` INTEGER NOT NULL, `currencyCode` TEXT NOT NULL, `type` TEXT NOT NULL, `status` TEXT NOT NULL, `pluggyCategoryId` TEXT, `pluggyCategory` TEXT, `merchantName` TEXT, `installmentNumber` INTEGER, `totalInstallments` INTEGER, `updatedAtMillis` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateEpochDay",
+            "columnName": "dateEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateTimeMillis",
+            "columnName": "dateTimeMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "descriptionRaw",
+            "columnName": "descriptionRaw",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "amountCents",
+            "columnName": "amountCents",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawAmountCents",
+            "columnName": "rawAmountCents",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pluggyCategoryId",
+            "columnName": "pluggyCategoryId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "pluggyCategory",
+            "columnName": "pluggyCategory",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "merchantName",
+            "columnName": "merchantName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "installmentNumber",
+            "columnName": "installmentNumber",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "totalInstallments",
+            "columnName": "totalInstallments",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_transaction_fact_accountId_dateEpochDay",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "dateEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transaction_fact_accountId_dateEpochDay` ON `${TABLE_NAME}` (`accountId`, `dateEpochDay`)"
+          },
+          {
+            "name": "index_transaction_fact_dateEpochDay",
+            "unique": false,
+            "columnNames": [
+              "dateEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_transaction_fact_dateEpochDay` ON `${TABLE_NAME}` (`dateEpochDay`)"
+          }
+        ]
+      },
+      {
+        "tableName": "category_dim",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `originalName` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalName",
+            "columnName": "originalName",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "category_override",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`transactionId` TEXT NOT NULL, `categoryId` TEXT NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`transactionId`))",
+        "fields": [
+          {
+            "fieldPath": "transactionId",
+            "columnName": "transactionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categoryId",
+            "columnName": "categoryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "transactionId"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `lastSuccessfulSyncAt` INTEGER NOT NULL, `fullHistoryLoaded` INTEGER NOT NULL, PRIMARY KEY(`accountId`))",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulSyncAt",
+            "columnName": "lastSuccessfulSyncAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fullHistoryLoaded",
+            "columnName": "fullHistoryLoaded",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId"
+          ]
+        }
+      }
+    ],
+    "views": [
+      {
+        "viewName": "vw_registers",
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT r.id AS transacao_id, date(r.dateEpochDay * 86400, 'unixepoch') AS data, CAST(strftime('%Y', r.dateEpochDay * 86400, 'unixepoch') AS INTEGER) AS ano, CAST(strftime('%m', r.dateEpochDay * 86400, 'unixepoch') AS INTEGER) AS mes, r.description AS descricao, r.merchantName AS estabelecimento, r.amountCents AS valor_centavos, r.amountCents / 100.0 AS valor, r.categoria_id AS categoria_id, CASE WHEN COALESCE(r.categoria_id, '') = '' THEN 'Sem categoria' ELSE COALESCE(c.name, r.pluggyCategory, 'Sem categoria') END AS categoria, r.manual AS categoria_manual, g.name AS grupo_categoria, CASE WHEN r.transferencia = 1 THEN 'transferencia' WHEN r.amountCents < 0 THEN 'gasto' WHEN r.amountCents > 0 AND r.tipo_conta = 'cartao' THEN 'estorno' WHEN r.amountCents > 0 THEN 'entrada' ELSE 'neutro' END AS tipo, CASE WHEN r.transferencia = 1 THEN 0 WHEN r.amountCents < 0 OR r.tipo_conta = 'cartao' THEN -r.amountCents / 100.0 ELSE 0 END AS valor_gasto, CASE WHEN r.transferencia = 0 AND r.amountCents > 0 AND r.tipo_conta = 'conta' THEN r.amountCents / 100.0 ELSE 0 END AS valor_entrada, r.conta AS conta, r.tipo_conta AS tipo_conta, r.banco AS banco, CASE WHEN r.status = 'PENDING' THEN 1 ELSE 0 END AS pendente, r.installmentNumber AS parcela, r.totalInstallments AS total_parcelas FROM (SELECT t.*, COALESCE(oc.id, t.pluggyCategoryId) AS categoria_id, CASE WHEN oc.id IS NOT NULL THEN 1 ELSE 0 END AS manual, CASE WHEN COALESCE(oc.id, t.pluggyCategoryId, '') = '05100000' OR substr(COALESCE(oc.id, t.pluggyCategoryId, ''), 1, 2) IN ('03', '04') THEN 1 ELSE 0 END AS transferencia, CASE WHEN a.type = 'CREDIT' THEN 'cartao' ELSE 'conta' END AS tipo_conta, a.name AS conta, COALESCE(i.bankName, i.connectorName) AS banco FROM transaction_fact t LEFT JOIN account_dim a ON a.id = t.accountId LEFT JOIN item_dim i ON i.id = a.itemId LEFT JOIN category_override o ON o.transactionId = t.id LEFT JOIN category_dim oc ON oc.id = o.categoryId) r LEFT JOIN category_dim c ON c.id = r.categoria_id LEFT JOIN category_dim g ON g.id = substr(r.categoria_id, 1, 2) || '000000'"
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0d7b7c258624333abc155d11a609ea6c')"
+    ]
+  }
+}

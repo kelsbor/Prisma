@@ -1,0 +1,9 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# cópias do banco usadas nos testes/avaliações
+*.db
+*.db-wal
+*.db-shm

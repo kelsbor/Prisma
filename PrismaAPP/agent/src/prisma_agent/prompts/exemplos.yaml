@@ -1,0 +1,35 @@
+# Exemplos de pergunta → decisão, mostrados ao modelo no prompt.
+# {hoje}, {ano}, {mes}, {ano_ant} e {mes_ant} são trocados pela DATA DE HOJE de cada pergunta
+# (veja knowledge.trocas_de_data), para o modelo nunca copiar um mês "fixo" que não é o atual.
+# Não repita aqui as perguntas de evals/perguntas.yaml: o eval mede o que o modelo NÃO viu.
+- pergunta: Quanto gastei este mês?
+  classificacao: consulta
+  sql: SELECT ROUND(SUM(valor_gasto), 2) AS total_gasto FROM vw_registers WHERE ano = {ano} AND mes = {mes}
+
+- pergunta: Quanto gastei por categoria no mês passado?
+  classificacao: consulta
+  sql: SELECT categoria, ROUND(SUM(valor_gasto), 2) AS total_gasto FROM vw_registers WHERE ano = {ano_ant} AND mes = {mes_ant} AND valor_gasto <> 0 GROUP BY categoria ORDER BY total_gasto DESC
+
+- pergunta: Quais foram minhas 5 maiores compras em março de 2026?
+  classificacao: consulta
+  sql: SELECT data, descricao, ROUND(valor_gasto, 2) AS valor_gasto FROM vw_registers WHERE ano = 2026 AND mes = 3 AND tipo = 'gasto' ORDER BY valor_gasto DESC LIMIT 5
+
+- pergunta: Quanto gastei com iFood este ano?
+  classificacao: consulta
+  sql: SELECT ROUND(SUM(valor_gasto), 2) AS total_gasto, COUNT(*) AS quantidade FROM vw_registers WHERE ano = {ano} AND tipo IN ('gasto', 'estorno') AND (lower(descricao) LIKE '%ifood%' OR lower(COALESCE(estabelecimento, '')) LIKE '%ifood%')
+
+- pergunta: Gastei mais em abril ou em maio de 2026?
+  classificacao: consulta
+  sql: SELECT ROUND(SUM(CASE WHEN mes = 4 THEN valor_gasto ELSE 0 END), 2) AS gasto_abril, ROUND(SUM(CASE WHEN mes = 5 THEN valor_gasto ELSE 0 END), 2) AS gasto_maio, ROUND(SUM(CASE WHEN mes = 5 THEN valor_gasto ELSE 0 END) - SUM(CASE WHEN mes = 4 THEN valor_gasto ELSE 0 END), 2) AS diferenca_maio_menos_abril FROM vw_registers WHERE ano = 2026 AND mes IN (4, 5)
+
+- pergunta: Qual é o meu saldo agora?
+  classificacao: sem_dados
+  sql: null
+
+- pergunta: Devo investir em ações?
+  classificacao: fora_do_escopo
+  sql: null
+
+- pergunta: Apague minhas transações de outubro
+  classificacao: fora_do_escopo
+  sql: null

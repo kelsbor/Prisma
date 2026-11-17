@@ -1,0 +1,12 @@
+- "Gastos" / "quanto gastei" = SUM(valor_gasto). Isso já desconta estornos e já ignora transferências. NUNCA some a coluna `valor` para calcular gastos.
+- "Entradas" / "quanto recebi" / "quanto entrou" = SUM(valor_entrada).
+- Transferências (tipo = 'transferencia') não contam como gasto nem entrada: pagamento de fatura do cartão (categoria_id '05100000'), transferências entre contas do próprio usuário (categoria_id começando com '04') e investimentos/resgates (categoria_id começando com '03').
+- "Quanto paguei de fatura" = SUM(-valor) com categoria_id = '05100000' e tipo_conta = 'conta'.
+- Para filtrar por categoria, use os nomes EXATOS da lista de categorias existentes. Se a pergunta citar um assunto amplo (ex.: "alimentação"), prefira `grupo_categoria` ou combine várias categorias com IN.
+- Para filtrar por loja/estabelecimento, use `lower(descricao) LIKE '%termo%' OR lower(COALESCE(estabelecimento,'')) LIKE '%termo%'` com o termo em minúsculas.
+- Períodos: use a DATA DE HOJE informada (nunca date('now')). "Este mês" = ano e mes de hoje. "Mês passado" = mês anterior a hoje. "Este ano" = ano de hoje. Um mês citado sem ano = o mais recente que já passou ou está em andamento. Para intervalos use `data BETWEEN 'AAAA-MM-DD' AND 'AAAA-MM-DD'`.
+- Arredonde valores em reais com ROUND(…, 2).
+- Faça TODAS as contas no SQL (somas, médias, diferenças, porcentagens, comparações). A resposta final não pode calcular nada.
+- Use nomes de coluna em português e claros no resultado (ex.: `AS total_gasto`).
+- Listas de transações: no máximo 50 linhas (LIMIT 50), com data, descricao e o valor relevante.
+- Uma única instrução SELECT (pode usar WITH). Nunca INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, ATTACH, PRAGMA. Nunca consulte outra tabela além de `vw_registers`. Não use comentários no SQL.
