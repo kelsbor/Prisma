@@ -337,39 +337,85 @@ def monthly_events(rng, p, start, end_excl):
 # Gastos variáveis (diários) e Pix recebidos
 # ----------------------------------------------------------------------------
 def variable_events(rng, p, days, merchants):
-    """Retorna gastos variáveis com valores BRUTOS (sem arredondar; o orçamento escala depois)."""
+    """Retorna gastos variáveis com valores BRUTOS (sem arredondar; o orçamento escala depois).
+       MODIFICADO: Injeção de gatilho condicional não-linear na última semana do mês para a categoria Lazer.
+    """
     frames = []
     dow, month = days.dayofweek.values, days.month.values
+    dom = days.day.values # Dia do mês para a regra da última semana
+    
     base_scale_income = p["income"] / 3500.0
     infl = (1 + IPCA) ** ((days - days[0]).days.values / 365.25)
+    
     for cat, (rate, med, sigma, elast, wd, boost, hm, hs, req) in VAR.items():
         if req == "car" and not p["has_car"]:
             continue
         if cat == "Transporte" and p["has_car"]:
             rate *= 0.5
+            
         wd = np.array(wd) / np.mean(wd)
         pay = 1 + boost * np.exp(-days_since_payday(days, p["payday"]) / 7.0) if p["payday"] else np.ones(len(days))
         seas = np.array([SEASON.get(cat, {}).get(m, 1.0) for m in month])
         lam = rate * wd[dow] * pay * seas * np.sqrt(p["propensity"])
         counts = rng.poisson(lam)
         n = int(counts.sum())
+        
         if n == 0:
             continue
+            
         day_idx = np.repeat(np.arange(len(days)), counts)
         scale = med * (base_scale_income ** elast) * p["cost_factor"] * p["propensity"] * 0.75
+        
         if p["housing"] == "familia" and cat == "Mercado":
             scale *= 0.6
-        amt = rng.lognormal(np.log(scale), sigma, n) * infl[day_idx]
-        hours = rng.normal(hm, hs, n) % 24.0            # dá a volta à meia-noite (sem acúmulo em 23:54)
+            
+        # GATILHO NÃO-LINEAR: Modificação cruzada apenas para Lazer na última semana do mês
+        if cat == "Lazer":
+            # Para cada transação de Lazer, verifica se caiu na última semana (dia >= 24)
+            dias_transacao = dom[day_idx]
+            is_ultima_semana = dias_transacao >= 24
+            
+            # Aplica o multiplicador não-linear de acordo com o perfil
+            # Alta renda: income >= 3500. Baixa renda: income < 3500
+            for i, (is_ult_sem) in enumerate(is_ultima_semana):
+                if is_ult_sem and p["housing"] == "aluguel":
+                    if p["income"] >= 3500:
+                         # Ganha bem E mora de aluguel: Lazer dobra na última semana
+                        scale_transacao = scale * 2.0
+                    else:
+                         # Ganha pouco E mora de aluguel: Lazer é cortado a 1/3 na última semana
+                        scale_transacao = scale * 0.33
+                else:
+                    scale_transacao = scale
+        else:
+            scale_transacao = scale
+
+        # Como scale agora pode variar por transação no Lazer, geramos o array de lognormal com cuidado
+        if cat == "Lazer":
+            # Reconstroi o array de valores transação por transação para a categoria modificada
+            amt = np.zeros(n)
+            for i in range(n):
+                # Recalcula o scale de cada transação baseado na regra acima e aplica
+                current_scale = scale
+                if is_ultima_semana[i] and p["housing"] == "aluguel":
+                    current_scale = scale * 2.0 if p["income"] >= 3500 else scale * 0.33
+                amt[i] = rng.lognormal(np.log(current_scale), sigma) * infl[day_idx[i]]
+        else:
+             # Comportamento original vetorizado para as outras categorias
+            amt = rng.lognormal(np.log(scale), sigma, n) * infl[day_idx]
+
+        hours = rng.normal(hm, hs, n) % 24.0
         ts = days.values[day_idx] + (hours * 3600).astype("timedelta64[s]").astype("timedelta64[ns]")
         pool = NAMES if cat == "Transferências" else merchants[cat]
         k = min(len(pool), int(rng.integers(3, 7)))
         favs = rng.choice(pool, k, replace=False)
         wz = 1.0 / np.arange(1, k + 1)
         chosen = rng.choice(favs, n, p=wz / wz.sum())
+        
         frames.append(pd.DataFrame({
             "timestamp": ts, "description": noisy_desc(rng, chosen, n, p["home_city"], cat), "merchant": chosen,
             "category": cat, "amount": -amt, "kind": "variable"}))
+            
     return pd.concat(frames, ignore_index=True)
 
 
