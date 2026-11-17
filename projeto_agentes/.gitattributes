@@ -1,0 +1,2 @@
+# Scripts de shell sempre com fim de linha do Linux, mesmo clonados no Windows
+*.sh text eol=lf

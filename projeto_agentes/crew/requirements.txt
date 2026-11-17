@@ -1,0 +1,3 @@
+# Ambiente SEPARADO do projeto: o CrewAI usa o mcp 1.x e os agentes do Prisma usam o mcp 2.x.
+# python3.11 -m venv .venv-crew && .venv-crew/bin/pip install -r crew/requirements.txt
+crewai[google-genai]>=1.15

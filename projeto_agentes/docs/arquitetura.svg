@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="740" viewBox="0 0 1000 740" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Arquitetura do Prisma</title>
+  <desc>Cinco agentes MCP locais. Coletor, Perfil Financeiro e Especialista falam com o Armazenamento, o único que acessa o SQLite. O Especialista consulta o Perfil, o Agente de Indicadores (que busca dados no Banco Central), o Chroma e, opcionalmente, o Gemini. O Orientador CrewAI, opcional, usa os agentes como ferramentas.</desc>
+  <defs>
+    <marker id="seta" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .t { font-size: 15px; font-weight: 600; }  .s { font-size: 12.5px; }  .l { font-size: 12px; fill: #5F5E5A; }
+      .g { font-size: 13px; font-weight: 600; fill: #5F5E5A; }
+      .ag rect { fill: #EEEDFE; stroke: #534AB7; } .ag .t { fill: #3C3489; } .ag .s { fill: #534AB7; }
+      .dd rect { fill: #E1F5EE; stroke: #0F6E56; } .dd .t { fill: #085041; } .dd .s { fill: #0F6E56; }
+      .nt rect { fill: #F1EFE8; stroke: #5F5E5A; } .nt .t { fill: #2C2C2A; } .nt .s { fill: #444441; }
+      .rn rect { fill: #FAEEDA; stroke: #854F0B; } .rn .t { fill: #633806; } .rn .s { fill: #854F0B; }
+      .ex rect { fill: #FFFFFF; stroke: #5F5E5A; stroke-dasharray: 6 4; } .ex .t { fill: #2C2C2A; } .ex .s { fill: #444441; }
+      .seta { stroke: #5F5E5A; stroke-width: 1.4; fill: none; }  .trac { stroke-dasharray: 6 4; }
+      .grupo { fill: none; stroke: #B4B2A9; stroke-dasharray: 4 4; }
+    </style>
+  </defs>
+  <rect width="1000" height="740" fill="#FFFFFF"/>
+  <g class="nt"><rect x="30" y="30" width="210" height="56" rx="8"/><text class="t" x="135.0" y="54.0" text-anchor="middle">Extratos</text><text class="s" x="135.0" y="73.0" text-anchor="middle">CSV, TXT, XLSX, OFX, PDF</text></g>
+  <g class="nt"><rect x="395" y="30" width="210" height="56" rx="8"/><text class="t" x="500.0" y="54.0" text-anchor="middle">Pessoa</text><text class="s" x="500.0" y="73.0" text-anchor="middle">terminal, VS Code ou chat</text></g>
+  <g class="ex"><rect x="760" y="30" width="210" height="56" rx="8"/><text class="t" x="865.0" y="54.0" text-anchor="middle">Gemini</text><text class="s" x="865.0" y="73.0" text-anchor="middle">Especialista e Orientador</text></g>
+  <g class="ex"><rect x="395" y="140" width="210" height="56" rx="8"/><text class="t" x="500.0" y="164.0" text-anchor="middle">Orientador (CrewAI)</text><text class="s" x="500.0" y="183.0" text-anchor="middle">opcional · usa o Gemini</text></g>
+  <rect class="grupo" x="20" y="228" width="960" height="248" rx="10"/><text class="g" x="34" y="248">agentes MCP · ./prisma.sh sobe e monitora (127.0.0.1, com token)</text>
+  <g class="ag"><rect x="40" y="270" width="200" height="56" rx="8"/><text class="t" x="140.0" y="294.0" text-anchor="middle">Coletor</text><text class="s" x="140.0" y="313.0" text-anchor="middle">8001 · lê extratos</text></g>
+  <g class="ag"><rect x="280" y="270" width="200" height="56" rx="8"/><text class="t" x="380.0" y="294.0" text-anchor="middle">Perfil Financeiro</text><text class="s" x="380.0" y="313.0" text-anchor="middle">8003 · redes neurais</text></g>
+  <g class="ag"><rect x="520" y="270" width="200" height="56" rx="8"/><text class="t" x="620.0" y="294.0" text-anchor="middle">Especialista</text><text class="s" x="620.0" y="313.0" text-anchor="middle">8002 · RAG</text></g>
+  <g class="ag"><rect x="760" y="270" width="200" height="56" rx="8"/><text class="t" x="860.0" y="294.0" text-anchor="middle">Indicadores</text><text class="s" x="860.0" y="313.0" text-anchor="middle">8004 · Banco Central</text></g>
+  <g class="ag"><rect x="280" y="390" width="200" height="56" rx="8"/><text class="t" x="380.0" y="414.0" text-anchor="middle">Armazenamento</text><text class="s" x="380.0" y="433.0" text-anchor="middle">8000 · dono do banco</text></g>
+  <g class="dd"><rect x="280" y="520" width="200" height="56" rx="8"/><text class="t" x="380.0" y="544.0" text-anchor="middle">SQLite</text><text class="s" x="380.0" y="563.0" text-anchor="middle">Fernet + HMAC</text></g>
+  <g class="dd"><rect x="520" y="520" width="200" height="56" rx="8"/><text class="t" x="620.0" y="544.0" text-anchor="middle">Chroma</text><text class="s" x="620.0" y="563.0" text-anchor="middle">índice vetorial</text></g>
+  <g class="ex"><rect x="760" y="520" width="200" height="56" rx="8"/><text class="t" x="860.0" y="544.0" text-anchor="middle">Banco Central</text><text class="s" x="860.0" y="563.0" text-anchor="middle">API SGS, pública</text></g>
+  <g class="dd"><rect x="520" y="620" width="200" height="56" rx="8"/><text class="t" x="620.0" y="644.0" text-anchor="middle">base_conhecimento/</text><text class="s" x="620.0" y="663.0" text-anchor="middle">37 materiais</text></g>
+  <path class="seta" d="M135 86 L135 266" marker-end="url(#seta)"/>
+  <path class="seta" d="M500 86 L500 136" marker-end="url(#seta)"/>
+  <path class="seta" d="M500 196 L500 226" marker-end="url(#seta)"/>
+  <text class="l" x="508" y="216" text-anchor="start">escolhe as ferramentas</text>
+  <path class="seta trac" d="M700 266 L700 180 L865 180 L865 90" marker-end="url(#seta)"/>
+  <path class="seta" d="M140 326 L140 418 L276 418" marker-end="url(#seta)"/>
+  <text class="l" x="208" y="410" text-anchor="middle">salvar_lote</text>
+  <path class="seta" d="M380 326 L380 386" marker-end="url(#seta)"/>
+  <path class="seta" d="M560 326 L560 418 L484 418" marker-end="url(#seta)"/>
+  <text class="l" x="522" y="410" text-anchor="middle">consultar</text>
+  <path class="seta" d="M520 298 L484 298" marker-end="url(#seta)"/>
+  <path class="seta" d="M720 298 L756 298" marker-end="url(#seta)"/>
+  <path class="seta" d="M860 326 L860 516" marker-end="url(#seta)"/>
+  <path class="seta" d="M640 326 L640 516" marker-end="url(#seta)"/>
+  <path class="seta" d="M380 446 L380 516" marker-end="url(#seta)"/>
+  <path class="seta" d="M620 620 L620 580" marker-end="url(#seta)"/>
+  <text class="l" x="628" y="604" text-anchor="start">indexar</text>
+  <rect x="40" y="701" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#534AB7"/><text class="l" x="60" y="712">agente ou ferramenta MCP</text>
+  <rect x="256.0" y="701" width="14" height="14" rx="3" fill="#E1F5EE" stroke="#0F6E56"/><text class="l" x="276.0" y="712">dados na máquina</text>
+  <rect x="416.0" y="701" width="14" height="14" rx="3" fill="#FFFFFF" stroke="#5F5E5A" stroke-dasharray="4 3"/><text class="l" x="436.0" y="712">fora da máquina ou opcional</text>
+</svg>
