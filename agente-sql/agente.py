@@ -1,4 +1,3 @@
-
 import json
 import sqlite3
 import time
@@ -11,41 +10,96 @@ PASTA = Path(__file__).parent
 CONFIG = json.loads((PASTA / "config.json").read_text(encoding="utf-8"))
 
 TABELAS = """
-transaction_fact (uma linha por transação)
-- id, accountId (-> account_dim.id)
-- dateEpochDay: dias desde 1970-01-01. NUNCA calcule esse número; filtre com as funções de data, ex.:
-  strftime('%Y-%m', dateEpochDay * 86400, 'unixepoch') = '2026-11'
-  date(dateEpochDay * 86400, 'unixepoch') BETWEEN '2026-10-01' AND '2026-10-15'
-- description, merchantName (estabelecimento, pode ser nulo)
-- amountCents: valor em CENTAVOS. Negativo = gasto/saída, positivo = entrada/estorno. Em reais: amountCents / 100.0
-- status: 'POSTED' ou 'PENDING'
-- pluggyCategoryId (-> category_dim.id), pluggyCategory (nome em inglês)
-- installmentNumber, totalInstallments (parcelas, podem ser nulos)
+Use SOMENTE estas fontes:
+- vw_registers para tudo sobre transações (gastos, entradas, categorias, parcelas)
+- account_dim (+ item_dim) só para saldo, fatura atual, limite e vencimento
+Não use transaction_fact, category_dim nem category_override.
 
-account_dim (contas e cartões)
-- id, itemId (-> item_dim.id), name, type ('BANK' = conta, 'CREDIT' = cartão)
-- balanceCents: saldo da conta ou fatura do cartão, em centavos
+vw_registers
+- transacao_id
+- data: texto 'AAAA-MM-DD'. Filtre direto: data BETWEEN '2026-10-01' AND '2026-10-31'
+- ano, mes: inteiros (ex.: ano = 2026 AND mes = 11)
+- descricao, estabelecimento (pode ser nulo)
+- valor: em reais, com sinal. Negativo = saída, positivo = entrada/estorno
+- valor_centavos: o mesmo valor em centavos
+- tipo: 'gasto', 'entrada', 'estorno' (crédito no cartão), 'transferencia' ou 'neutro'
+  'transferencia' = pagamento de fatura, investimentos e transferências entre contas próprias;
+  NUNCA conte como gasto nem como entrada
+- valor_gasto: em reais, POSITIVO. Já exclui transferências e já desconta estornos do cartão
+  (estorno aparece negativo). Total gasto = SUM(valor_gasto)
+- valor_entrada: em reais, positivo, só entradas em conta (não transferências). Total recebido = SUM(valor_entrada)
+- categoria_id, categoria (nome em português; 'Sem categoria' quando não há)
+- grupo_categoria: categoria-mãe (ex.: 'Alimentação' para 'Delivery de alimentos')
+- categoria_manual: 1 se o usuário recategorizou
+- conta (nome da conta/cartão, igual a account_dim.name), tipo_conta: 'conta' ou 'cartao', banco
+- pendente: 1 = ainda não lançada. Inclui PARCELAS FUTURAS do cartão (datas depois de hoje).
+  Para "quanto gastei" use só datas até hoje; para "quanto vou pagar"/"parcelas futuras" use pendente = 1
+- parcela, total_parcelas: número da parcela (podem ser nulos)
 
-item_dim (conexões/bancos): id, bankName, connectorName
+account_dim (uma linha por conta/cartão; situação ATUAL, não histórica)
+- id, itemId (-> item_dim.id), name (pode ter espaços no fim: use trim(name))
+- type: 'BANK' = conta, 'CREDIT' = cartão
+- balanceCents: em CENTAVOS. Conta = saldo; cartão = valor da fatura atual. Em reais: balanceCents / 100.0
+- creditLimitCents, availableLimitCents: limite total e disponível do cartão, em centavos (nulo em conta)
+- balanceDueDateEpochDay: vencimento da fatura em dias desde 1970-01-01 (pode ser nulo);
+  converta com date(balanceDueDateEpochDay * 86400, 'unixepoch')
 
-category_dim (categorias): id, name (em português)
-- ids hierárquicos: os 2 primeiros dígitos são o grupo ('11020000' pertence a '11000000')
-- '05100000' = pagamento de fatura; ids começando com '03' (investimentos) ou '04'
-  (transferência entre contas próprias) não são gastos nem entradas
+item_dim (banco de cada conta): id, bankName. Nome do banco: JOIN item_dim i ON i.id = a.itemId
+"""
+
+EXEMPLOS = """
+Exemplos (considerando hoje = 2026-11-25; use a data de hoje informada na pergunta):
+
+Pergunta: quanto gastei esse mês?
+SELECT '2026-11-01 a 2026-11-25' AS periodo, ROUND(SUM(valor_gasto), 2) AS total_gasto
+FROM vw_registers WHERE data BETWEEN '2026-11-01' AND '2026-11-25'
+
+Pergunta: onde mais gastei no mês passado?
+SELECT categoria, ROUND(SUM(valor_gasto), 2) AS total_gasto FROM vw_registers
+WHERE ano = 2026 AND mes = 10 GROUP BY categoria HAVING total_gasto > 0
+ORDER BY total_gasto DESC LIMIT 10
+
+Pergunta: quanto gastei com ifood em 2026?
+SELECT ROUND(SUM(valor_gasto), 2) AS total_gasto, COUNT(*) AS compras FROM vw_registers
+WHERE (descricao LIKE '%ifood%' OR estabelecimento LIKE '%ifood%')
+AND data BETWEEN '2026-01-01' AND '2026-11-25'
+
+Pergunta: quanto recebi por mês este ano?
+SELECT ano, mes, ROUND(SUM(valor_entrada), 2) AS total_recebido FROM vw_registers
+WHERE ano = 2026 AND data <= '2026-11-25' GROUP BY ano, mes ORDER BY ano, mes
+
+Pergunta: quais parcelas ainda vou pagar?
+SELECT data, descricao, parcela, total_parcelas, ROUND(-valor, 2) AS valor FROM vw_registers
+WHERE data > '2026-11-25' AND tipo = 'gasto' ORDER BY data LIMIT 50
+
+Pergunta: qual meu saldo e quanto tenho de limite?
+SELECT trim(a.name) AS conta, CASE a.type WHEN 'CREDIT' THEN 'cartão' ELSE 'conta' END AS tipo,
+ROUND(a.balanceCents / 100.0, 2) AS saldo_ou_fatura, ROUND(a.availableLimitCents / 100.0, 2) AS limite_disponivel
+FROM account_dim a ORDER BY a.type
+
+Pergunta: últimas compras no cartão platinum
+SELECT data, descricao, ROUND(valor_gasto, 2) AS valor FROM vw_registers
+WHERE conta = 'platinum' AND tipo = 'gasto' AND data <= '2026-11-25' ORDER BY data DESC LIMIT 50
 """
 
 PROMPT_SQL = f"""Você escreve consultas SQLite para um app de finanças pessoais.
 Responda SOMENTE com a consulta SQL. Sem explicação, sem markdown.
 
-Tabelas do banco:
-{TABELAS}"""
+Fontes:
+{TABELAS}
+{EXEMPLOS}"""
 
-PROMPT_RESPOSTA = f"""Você é o assistente de um app de finanças pessoais.
+PROMPT_RESPOSTA = """Você é o assistente de um app de finanças pessoais.
 O usuário fez uma pergunta, uma consulta SQL foi executada no banco dele e o resultado está abaixo.
-Responda em português, de forma curta, usando só o resultado. Valores em reais no formato R$ 1.234,56.
 
-Tabelas do banco:
-{TABELAS}"""
+Como responder:
+- Em português, curto e direto (1 a 3 frases; use lista só se houver vários itens).
+- Use SOMENTE o resultado. Não invente valores nem faça contas que o resultado não sustenta.
+- Valores em reais no formato R$ 1.234,56. Datas no formato DD/MM/AAAA.
+- Diga o período considerado quando ele não estiver claro na pergunta.
+- Resultado vazio ou total nulo: diga que não encontrou registros para aquilo.
+- Resultado com ERRO: diga que não conseguiu consultar e sugira reformular a pergunta.
+- Se "cortado_em_200" for true, avise que mostrou só parte."""
 
 
 def perguntar_ao_llm(sistema, mensagem):
@@ -82,17 +136,21 @@ def limpar_sql(texto):
 def executar_sql(sql):
     caminho = (PASTA / CONFIG["banco"]).resolve()
     try:
-        with sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True) as banco:
+        banco = sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True)
+        try:
             cursor = banco.execute(sql)
             colunas = [c[0] for c in cursor.description or []]
-            linhas = cursor.fetchmany(200)
-        return json.dumps({"colunas": colunas, "linhas": linhas}, ensure_ascii=False, default=str)
+            linhas = cursor.fetchmany(201)
+        finally:
+            banco.close()
+        resultado = {"colunas": colunas, "linhas": linhas[:200], "cortado_em_200": len(linhas) > 200}
+        return json.dumps(resultado, ensure_ascii=False, default=str)
     except sqlite3.Error as e:
         return f"ERRO ao executar: {e}"
 
 
 def responder(pergunta):
-    hoje = date.today().isoformat()
+    hoje = date.today()
 
     sql = limpar_sql(perguntar_ao_llm(PROMPT_SQL, f"Data de hoje: {hoje}\nPergunta: {pergunta}"))
     print(f"\n[SQL] {sql}")
@@ -102,7 +160,8 @@ def responder(pergunta):
 
     return perguntar_ao_llm(
         PROMPT_RESPOSTA,
-        f"Data de hoje: {hoje}\nPergunta: {pergunta}\n\nSQL executado:\n{sql}\n\nResultado:\n{resultado}",
+        f"Data de hoje: {hoje:%d/%m/%Y}\nPergunta: {pergunta}\n\n"
+        f"SQL executado:\n{sql}\n\nResultado:\n{resultado}",
     )
 
 

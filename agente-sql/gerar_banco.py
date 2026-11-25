@@ -30,7 +30,65 @@ CREATE TABLE IF NOT EXISTS transaction_fact (
     pluggyCategory TEXT, merchantName TEXT, installmentNumber INTEGER, totalInstallments INTEGER,
     updatedAtMillis INTEGER);
 CREATE TABLE IF NOT EXISTS category_dim (id TEXT PRIMARY KEY, name TEXT NOT NULL, originalName TEXT);
+CREATE TABLE IF NOT EXISTS category_override (
+    transactionId TEXT PRIMARY KEY, categoryId TEXT NOT NULL, updatedAtMillis INTEGER NOT NULL);
 """
+
+
+# vw_registers: mesma view do app (uma linha por transação, já com conta, banco e categoria).
+# É ela que o agente consulta para transações; saldos e limites ele lê da account_dim.
+CORPO_VW_REGISTERS = """
+SELECT
+    r.id AS transacao_id,
+    date(r.dateEpochDay * 86400, 'unixepoch') AS data,
+    CAST(strftime('%Y', r.dateEpochDay * 86400, 'unixepoch') AS INTEGER) AS ano,
+    CAST(strftime('%m', r.dateEpochDay * 86400, 'unixepoch') AS INTEGER) AS mes,
+    r.description AS descricao,
+    r.merchantName AS estabelecimento,
+    r.amountCents AS valor_centavos,
+    r.amountCents / 100.0 AS valor,
+    r.categoria_id AS categoria_id,
+    CASE WHEN COALESCE(r.categoria_id, '') = '' THEN 'Sem categoria'
+         ELSE COALESCE(c.name, r.pluggyCategory, 'Sem categoria') END AS categoria,
+    r.manual AS categoria_manual,
+    g.name AS grupo_categoria,
+    CASE WHEN r.transferencia = 1 THEN 'transferencia'
+         WHEN r.amountCents < 0 THEN 'gasto'
+         WHEN r.amountCents > 0 AND r.tipo_conta = 'cartao' THEN 'estorno'
+         WHEN r.amountCents > 0 THEN 'entrada'
+         ELSE 'neutro' END AS tipo,
+    CASE WHEN r.transferencia = 1 THEN 0
+         WHEN r.amountCents < 0 OR r.tipo_conta = 'cartao' THEN -r.amountCents / 100.0
+         ELSE 0 END AS valor_gasto,
+    CASE WHEN r.transferencia = 0 AND r.amountCents > 0 AND r.tipo_conta = 'conta'
+         THEN r.amountCents / 100.0 ELSE 0 END AS valor_entrada,
+    r.conta AS conta,
+    r.tipo_conta AS tipo_conta,
+    r.banco AS banco,
+    CASE WHEN r.status = 'PENDING' THEN 1 ELSE 0 END AS pendente,
+    r.installmentNumber AS parcela,
+    r.totalInstallments AS total_parcelas
+FROM (
+    SELECT t.*,
+        COALESCE(oc.id, t.pluggyCategoryId) AS categoria_id,
+        CASE WHEN oc.id IS NOT NULL THEN 1 ELSE 0 END AS manual,
+        CASE WHEN COALESCE(oc.id, t.pluggyCategoryId, '') = '05100000'
+               OR substr(COALESCE(oc.id, t.pluggyCategoryId, ''), 1, 2) IN ('03', '04')
+             THEN 1 ELSE 0 END AS transferencia,
+        CASE WHEN a.type = 'CREDIT' THEN 'cartao' ELSE 'conta' END AS tipo_conta,
+        a.name AS conta,
+        COALESCE(i.bankName, i.connectorName) AS banco
+    FROM transaction_fact t
+    LEFT JOIN account_dim a ON a.id = t.accountId
+    LEFT JOIN item_dim i ON i.id = a.itemId
+    LEFT JOIN category_override o ON o.transactionId = t.id
+    LEFT JOIN category_dim oc ON oc.id = o.categoryId
+) r
+LEFT JOIN category_dim c ON c.id = r.categoria_id
+LEFT JOIN category_dim g ON g.id = substr(r.categoria_id, 1, 2) || '000000'
+"""
+
+CRIAR_VW_REGISTERS = "DROP VIEW IF EXISTS vw_registers;\nCREATE VIEW vw_registers AS" + CORPO_VW_REGISTERS + ";"
 
 
 def chamar(metodo, caminho, api_key=None, corpo=None):
@@ -93,6 +151,7 @@ def main():
 
     banco = sqlite3.connect(PASTA / CONFIG["banco"])
     banco.executescript(TABELAS)
+    banco.executescript(CRIAR_VW_REGISTERS)
 
     pagina, total = 1, 1
     while pagina <= total:
