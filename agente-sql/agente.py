@@ -4,8 +4,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import nullcontext
 from datetime import date
 from pathlib import Path
+
+from metricas import MetricasExecucao
 
 PASTA = Path(__file__).parent
 CONFIG = json.loads((PASTA / "config.json").read_text(encoding="utf-8"))
@@ -108,7 +111,7 @@ def log(mensagem):
     print(mensagem, file=sys.stderr, flush=True)
 
 
-def perguntar_ao_llm(sistema, mensagem):
+def perguntar_ao_llm(sistema, mensagem, metricas=None):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{CONFIG['gemini_model']}:generateContent"
     corpo = {
         "systemInstruction": {"parts": [{"text": sistema}]},
@@ -119,13 +122,19 @@ def perguntar_ao_llm(sistema, mensagem):
         headers={"Content-Type": "application/json", "x-goog-api-key": CONFIG["gemini_api_key"]},
     )
     for tentativa in range(4):
+        if metricas:
+            metricas.registrar_tentativa_llm()
         try:
             with urllib.request.urlopen(pedido, timeout=90) as resposta:
                 dados = json.load(resposta)
+            if metricas:
+                metricas.registrar_chamada_llm(dados.get("usageMetadata"))
             break
         except urllib.error.HTTPError as e:
             # 429/500/503 = Gemini sobrecarregado ou limite por minuto: espera e tenta de novo.
             if e.code in (429, 500, 503) and tentativa < 3:
+                if metricas:
+                    metricas.registrar_chamada_llm(None)
                 log(f"(Gemini ocupado, erro {e.code}; tentando de novo em {5 * (tentativa + 1)} s...)")
                 time.sleep(5 * (tentativa + 1))
                 continue
@@ -139,38 +148,53 @@ def limpar_sql(texto):
     return texto.replace("```sql", "").replace("```", "").strip()
 
 
-def executar_sql(sql):
+def executar_sql(sql, metricas=None):
     caminho = (PASTA / CONFIG["banco"]).resolve()
-    try:
-        banco = sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True)
+    with (metricas.etapa("execucao_sql_ms") if metricas else nullcontext()):
         try:
-            cursor = banco.execute(sql)
-            colunas = [c[0] for c in cursor.description or []]
-            linhas = cursor.fetchmany(201)
-        finally:
-            banco.close()
-        resultado = {"colunas": colunas, "linhas": linhas[:200], "cortado_em_200": len(linhas) > 200}
-        return json.dumps(resultado, ensure_ascii=False, default=str)
-    except sqlite3.Error as e:
-        return f"ERRO ao executar: {e}"
+            banco = sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True)
+            try:
+                cursor = banco.execute(sql)
+                colunas = [c[0] for c in cursor.description or []]
+                linhas = cursor.fetchmany(201)
+            finally:
+                banco.close()
+            resultado = {"colunas": colunas, "linhas": linhas[:200], "cortado_em_200": len(linhas) > 200}
+            if metricas:
+                metricas.registrar_resultado_sql(len(resultado["linhas"]), resultado["cortado_em_200"])
+            return json.dumps(resultado, ensure_ascii=False, default=str)
+        except sqlite3.Error as e:
+            return f"ERRO ao executar: {e}"
 
 
-def responder_detalhado(pergunta):
+def responder_detalhado(pergunta, hoje=None, log_detalhes=True):
     """Faz o fluxo completo e devolve resposta, SQL e dados (é o que o servidor MCP usa)."""
-    hoje = date.today()
+    hoje = hoje or date.today()
+    metricas = MetricasExecucao()
+    try:
+        with metricas.etapa("geracao_sql_ms"):
+            sql = limpar_sql(perguntar_ao_llm(
+                PROMPT_SQL, f"Data de hoje: {hoje}\nPergunta: {pergunta}", metricas,
+            ))
+        if log_detalhes:
+            log(f"\n[SQL] {sql}")
 
-    sql = limpar_sql(perguntar_ao_llm(PROMPT_SQL, f"Data de hoje: {hoje}\nPergunta: {pergunta}"))
-    log(f"\n[SQL] {sql}")
+        resultado = executar_sql(sql, metricas)
+        if log_detalhes:
+            log(f"[Resultado] {resultado[:500]}")
 
-    resultado = executar_sql(sql)
-    log(f"[Resultado] {resultado[:500]}")
-
-    resposta = perguntar_ao_llm(
-        PROMPT_RESPOSTA,
-        f"Data de hoje: {hoje:%d/%m/%Y}\nPergunta: {pergunta}\n\n"
-        f"SQL executado:\n{sql}\n\nResultado:\n{resultado}",
-    )
-    dados = json.loads(resultado) if not resultado.startswith("ERRO") else {"erro": resultado}
+        with metricas.etapa("geracao_resposta_ms"):
+            resposta = perguntar_ao_llm(
+                PROMPT_RESPOSTA,
+                f"Data de hoje: {hoje:%d/%m/%Y}\nPergunta: {pergunta}\n\n"
+                f"SQL executado:\n{sql}\n\nResultado:\n{resultado}",
+                metricas,
+            )
+        dados = json.loads(resultado) if not resultado.startswith("ERRO") else {"erro": resultado}
+    except Exception as erro:
+        metricas.finalizar("falha", type(erro).__name__)
+        raise
+    metricas.finalizar("erro_sql" if resultado.startswith("ERRO") else "sucesso")
     return {"resposta": resposta, "sql": sql, "dados": dados}
 
 

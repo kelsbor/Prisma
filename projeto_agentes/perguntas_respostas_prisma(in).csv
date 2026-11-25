@@ -1,0 +1,51 @@
+﻿pergunta,resposta
+"Qual é o valor total de gastos (tipo = ""gasto"") registrados em todas as transações?","R$ 46.245,50, somando a coluna valor_gasto de todos os registros com tipo = ""gasto""."
+"Qual é o valor total de entradas (tipo = ""entrada"") registradas em todas as transações?","R$ 39.148,91, somando a coluna valor_entrada de todos os registros com tipo = ""entrada""."
+Quantas transações no total existem na vw_registers?,806 transações.
+"Como as transações se distribuem por tipo (gasto, entrada, transferência, estorno)?","588 do tipo ""gasto"", 107 do tipo ""entrada"", 91 do tipo ""transferencia"" e 20 do tipo ""estorno""."
+Qual foi o maior gasto individual registrado?,"Um PIX enviado para COMERCIO DE COLCHOES AUGUSTI LTDA, no valor de R$ 4.411,00, em 07/09/2026."
+Qual foi a maior entrada individual registrada?,"Um depósito em dinheiro (DEP DINHEIRO ATM) de R$ 1.980,00, em 19/12/2025."
+Qual grupo de categoria (grupo_categoria) concentra o maior gasto total?,"Supermercado, com R$ 10.288,35 em gastos."
+Quais são os 3 grupos de categoria com maior gasto total?,"Supermercado (R$ 10.288,35), Transporte (R$ 9.559,96) e Serviços (R$ 7.324,47)."
+Qual categoria (coluna categoria) tem o maior número de transações?,"Supermercado, com 144 transações."
+Qual é o estabelecimento mais frequente nas transações?,"Savegnago, com 28 transações."
+Quais são os 3 estabelecimentos mais frequentes?,"Savegnago (28 transações), Shopee (15 transações) e IFOOD.COM AGENCIA DE RESTAURANTES ONLINE S.A. (14 transações)."
+"Qual é o valor médio de uma transação do tipo ""gasto""?","R$ 78,65 por transação (média sobre as 588 transações de gasto)."
+"Qual é o total gasto na categoria ""Supermercado""?","R$ 10.257,37."
+"Qual é o total gasto com transferências via PIX enviado (tipo = ""gasto"")?","R$ 3.383,08."
+"Qual é o total recebido via PIX (tipo = ""entrada"")?","R$ 21.614,21."
+Quantas transações estão com status pendente?,44 transações com pendente = 1.
+"Quantas transações do tipo ""estorno"" existem e qual o valor total?","20 transações, totalizando R$ 2.087,68."
+Qual é o total gasto com delivery de alimentos?,"R$ 801,26."
+Quantas transações fazem parte de compras parceladas (campo parcela preenchido)?,62 transações possuem número de parcela preenchido.
+Qual é a data da transação mais antiga registrada?,04/11/2025.
+Qual é a data da transação mais recente registrada?,06/07/2027 (refere-se a uma parcela futura de uma compra parcelada já lançada no sistema).
+Qual é o total gasto na conta corrente do Banco Santander?,"R$ 18.088,23."
+Qual é o total gasto na conta pré-paga da Nu Pagamentos?,"R$ 528,60."
+Qual é o total gasto no cartão de crédito platinum (Nu)?,"R$ 27.628,67."
+Qual é o total gasto por ano?,"2025: R$ 4.768,01; 2026: R$ 40.729,56; 2027: R$ 747,93 (os valores de 2027 referem-se a parcelas futuras já lançadas)."
+Qual foi o mês com o maior gasto total e qual o valor?,"Setembro de 2026, com R$ 9.622,77 em gastos."
+Qual é o total gasto com postos de gasolina?,"R$ 2.256,33."
+Qual é o total gasto com streaming de música?,"R$ 189,70."
+Qual é o total gasto no cartão de crédito comparado à conta corrente?,"Cartão de crédito: R$ 27.628,67; Conta corrente: R$ 18.616,83."
+Qual é o total debitado da conta corrente para pagamento de faturas de cartão de crédito?,"R$ 22.371,86, em 12 transações da categoria ""Pagamento de cartão de crédito"" debitadas da conta."
+Qual é o total aplicado em renda fixa?,"R$ 1.103,99, em 28 aplicações."
+Qual é o total de juros de aplicação automática recebidos?,"R$ 0,44, em 15 lançamentos da categoria ""Juros de rendimentos de dividendos""."
+Qual é o total de salário recebido?,"R$ 5.700,29, em 4 lançamentos da categoria ""Salário""."
+Qual foi o valor e a data do salário mais recente recebido?,"R$ 1.602,20, recebido em 06/11/2026."
+Quantas categorias distintas (coluna categoria) aparecem nas transações?,48 categorias distintas.
+Quantos grupos de categoria (grupo_categoria) distintos existem?,17 grupos de categoria distintos.
+Qual é o total gasto em farmácia?,"R$ 772,11."
+Qual é o total gasto em pet shops e veterinários?,"R$ 893,59."
+Qual é o saldo atual da conta corrente do Banco Santander?,"R$ 2.341,49, conforme account_dim.balanceCents."
+Qual é o saldo atual da conta pré-paga da Nu Pagamentos?,"R$ 0,47."
+Qual é a soma dos saldos das contas do tipo BANK (conta corrente + conta pré-paga)?,"R$ 2.341,96."
+Qual é o valor atual da fatura (saldo devedor) do cartão platinum da Nu?,"R$ 3.595,26."
+Qual é o valor atual da fatura (saldo devedor) do cartão Santander Elite Visa?,"R$ 0,00."
+Qual é o limite de crédito total do cartão platinum da Nu?,"R$ 10.000,00."
+Qual é o limite de crédito disponível do cartão platinum da Nu?,"R$ 2.404,74."
+Qual é o limite de crédito do cartão Santander Elite Visa?,Não informado — o campo creditLimitCents está nulo em account_dim para esse cartão.
+Qual é a data de vencimento da fatura do cartão platinum da Nu?,Não informada — o campo balanceDueDateEpochDay está nulo em account_dim para esse cartão (o mesmo vale para o cartão Santander).
+Quantas contas estão cadastradas e quais são os tipos delas?,4 contas: 2 do tipo BANK (conta corrente do Santander e conta pré-paga da Nu) e 2 do tipo CREDIT (cartão Santander Elite Visa e cartão platinum da Nu).
+"A quais instituições financeiras pertencem as contas cadastradas, e qual o status de sincronização?","Banco Santander Pessoa Física e Nu Pagamentos S.A., ambas conectadas via ""MeuPluggy"" com status de sincronização ""UPDATED""."
+Quais são os números mascarados das contas e cartões cadastrados?,Conta Santander: 00002015688-1; Cartão Santander Elite Visa: final 3564; Conta Nu: 59025689-6; Cartão platinum Nu: final 6893.
