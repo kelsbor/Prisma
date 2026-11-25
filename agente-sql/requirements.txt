@@ -1,0 +1,1 @@
+mcp==2.3.0   # só para o servidor_mcp.py; o agente.py e o gerar_banco.py usam só a biblioteca padrão

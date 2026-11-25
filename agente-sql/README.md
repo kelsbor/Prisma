@@ -1,6 +1,7 @@
 # Agente SQL (Python, local)
 
-Só usa a biblioteca padrão do Python (3.11+). Não precisa de `pip install`.
+O agente e o gerador do banco só usam a biblioteca padrão do Python (3.11+).
+O servidor MCP precisa do pacote `mcp` (veja `requirements.txt`).
 
 ## Configurar
 
@@ -30,3 +31,31 @@ Fluxo (o "Agente Simples"):
 2. o SQL é executado sem validação (o banco é aberto como somente leitura);
 3. o Gemini recebe a pergunta, o SQL e o resultado (mesmo se der erro ou vier vazio);
 4. a resposta aparece na tela. Cada pergunta é independente: não há histórico.
+
+## Rodar como servidor MCP
+
+O mesmo agente, exposto como a ferramenta `consultar_financas(pergunta)` para um orquestrador
+(CrewAI, LangGraph), o Claude Desktop/Code ou o VS Code:
+
+```
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt      (Linux/Mac: .venv/bin/pip)
+.venv\Scripts\python servidor_mcp.py
+```
+
+A ferramenta devolve `resposta` (texto), `sql` (consulta executada) e `dados` (linhas do banco).
+Em caso de falha do Gemini, devolve `erro`. Os logs (`[SQL]`, `[Resultado]`) vão para o stderr,
+porque no modo stdio o stdout é usado pelo protocolo.
+
+Exemplo de configuração num cliente MCP (ajuste os caminhos):
+
+```json
+{
+  "mcpServers": {
+    "agente-sql": {
+      "command": "C:/caminho/agente-sql/.venv/Scripts/python.exe",
+      "args": ["C:/caminho/agente-sql/servidor_mcp.py"]
+    }
+  }
+}
+```

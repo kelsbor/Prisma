@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -102,6 +103,11 @@ Como responder:
 - Se "cortado_em_200" for true, avise que mostrou só parte."""
 
 
+def log(mensagem):
+    # Vai para o stderr: no servidor MCP (stdio) o stdout é reservado para o protocolo.
+    print(mensagem, file=sys.stderr, flush=True)
+
+
 def perguntar_ao_llm(sistema, mensagem):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{CONFIG['gemini_model']}:generateContent"
     corpo = {
@@ -120,7 +126,7 @@ def perguntar_ao_llm(sistema, mensagem):
         except urllib.error.HTTPError as e:
             # 429/500/503 = Gemini sobrecarregado ou limite por minuto: espera e tenta de novo.
             if e.code in (429, 500, 503) and tentativa < 3:
-                print(f"(Gemini ocupado, erro {e.code}; tentando de novo em {5 * (tentativa + 1)} s...)")
+                log(f"(Gemini ocupado, erro {e.code}; tentando de novo em {5 * (tentativa + 1)} s...)")
                 time.sleep(5 * (tentativa + 1))
                 continue
             raise RuntimeError(f"Erro {e.code} do Gemini: {e.read().decode(errors='replace')[:300]}")
@@ -149,20 +155,27 @@ def executar_sql(sql):
         return f"ERRO ao executar: {e}"
 
 
-def responder(pergunta):
+def responder_detalhado(pergunta):
+    """Faz o fluxo completo e devolve resposta, SQL e dados (é o que o servidor MCP usa)."""
     hoje = date.today()
 
     sql = limpar_sql(perguntar_ao_llm(PROMPT_SQL, f"Data de hoje: {hoje}\nPergunta: {pergunta}"))
-    print(f"\n[SQL] {sql}")
+    log(f"\n[SQL] {sql}")
 
     resultado = executar_sql(sql)
-    print(f"[Resultado] {resultado[:500]}")
+    log(f"[Resultado] {resultado[:500]}")
 
-    return perguntar_ao_llm(
+    resposta = perguntar_ao_llm(
         PROMPT_RESPOSTA,
         f"Data de hoje: {hoje:%d/%m/%Y}\nPergunta: {pergunta}\n\n"
         f"SQL executado:\n{sql}\n\nResultado:\n{resultado}",
     )
+    dados = json.loads(resultado) if not resultado.startswith("ERRO") else {"erro": resultado}
+    return {"resposta": resposta, "sql": sql, "dados": dados}
+
+
+def responder(pergunta):
+    return responder_detalhado(pergunta)["resposta"]
 
 
 def main():
