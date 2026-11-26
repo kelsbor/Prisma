@@ -47,7 +47,7 @@ O Prisma reúne as contas e os cartões da pessoa pela **Pluggy** (Open Finance)
 
 ## Como rodar
 
-### Computador: agentes e dados (Linux ou WSL)
+### Computador: agentes e dados (Linux, WSL ou Windows)
 
 ```bash
 cd projeto_agentes
@@ -62,6 +62,8 @@ nano .env                    # PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_IT
 ./prisma.sh sql "Qual meu saldo e quanto tenho de limite?"
 ./prisma.sh indicadores juros
 ```
+
+No **Windows**, use o `prisma.ps1` com os mesmos comandos (`.\prisma.ps1 iniciar`, `.\prisma.ps1 pluggy`...), ou no **VS Code** rode tudo por **Ctrl+Shift+P → Tasks: Run Task**, sem digitar comandos.
 
 Passo a passo completo, comandos e problemas comuns: [README dos agentes](projeto_agentes/README.md).
 
@@ -106,14 +108,15 @@ Prisma/
     ├── consultas/        # SQL validado com o código do assistente do app
     ├── base_conhecimento/
     ├── docs/             # diagramas (python docs/gerar_diagramas.py)
-    ├── prisma.sh         # sobe e controla os agentes; pluggy, app, sql
+    ├── prisma.sh         # sobe e controla os agentes; pluggy, app, sql (Linux/WSL)
+    ├── prisma.ps1        # o mesmo, para Windows
     └── .env.example      # modelo do .env único
 ```
 
 ## Próximos passos
 
 - Notificações dos agentes para o app (mudanças de gasto, variação dos juros).
-- Persistir o histórico do orquestrador (hoje fica na memória do processo).
+- Conferência automática das respostas do Especialista e do agente-sql, como o guardião do R$ do Consultas.
 - Medir a busca do Especialista com os modos `local` e `gemini` e revisar a base de conhecimento.
 
 ## Branches

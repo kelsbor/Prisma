@@ -1,0 +1,393 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Prisma: iniciar (sobe os 3 agentes)",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "iniciar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "iniciar"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: parar",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "parar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "parar"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: status",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "status"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "status"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: mostrar o .env (sem segredos)",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "env"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "env"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: baixar dados da Pluggy",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "pluggy"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "pluggy"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: indexar a base de conhecimento",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "indexar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "indexar"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: avaliar a busca (RAG)",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "especialista",
+        "avaliar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "especialista",
+          "avaliar"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Prisma: testes",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "testes"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "testes"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Especialista: perguntar com os meus dados",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "especialista",
+        "perguntar",
+        "${input:pergunta}",
+        "--com-dados"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "especialista",
+          "perguntar",
+          "${input:pergunta}",
+          "--com-dados"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Especialista: resumo do mês",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "especialista",
+        "resumo"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "especialista",
+          "resumo"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Consultas: perguntar sobre os gastos",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "consultas",
+        "perguntar",
+        "${input:pergunta}"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "consultas",
+          "perguntar",
+          "${input:pergunta}"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "agente-sql: perguntar (saldo, fatura, limite)",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "sql",
+        "${input:pergunta}"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "sql",
+          "${input:pergunta}"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Indicadores: juros do crédito",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "indicadores",
+        "juros"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "indicadores",
+          "juros"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "App: subir o assistente do PrismaAPP",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "app"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "app"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "App: parar o assistente",
+      "type": "shell",
+      "command": "./prisma.sh",
+      "args": [
+        "app",
+        "parar"
+      ],
+      "windows": {
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\prisma.ps1",
+          "app",
+          "parar"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "pergunta",
+      "type": "promptString",
+      "description": "Pergunta",
+      "default": "Quanto gastei este mês?"
+    }
+  ]
+}

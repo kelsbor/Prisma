@@ -21,7 +21,7 @@ PASTA = Path(__file__).parent
 def _ler_env(arquivo: Path) -> dict:
     valores = {}
     if arquivo.exists():
-        for linha in arquivo.read_text(encoding="utf-8").splitlines():
+        for linha in arquivo.read_text(encoding="utf-8-sig").splitlines():
             linha = linha.strip()
             if linha and not linha.startswith("#") and "=" in linha:
                 k, v = linha.split("=", 1)

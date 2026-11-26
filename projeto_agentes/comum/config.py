@@ -13,7 +13,7 @@ def _carregar_env(arquivo: Path) -> None:
     """Lê KEY=VALOR do .env, sem sobrescrever o que já está no ambiente."""
     if not arquivo.exists():
         return
-    for linha in arquivo.read_text(encoding="utf-8").splitlines():
+    for linha in arquivo.read_text(encoding="utf-8-sig").splitlines():
         linha = linha.strip()
         if linha and not linha.startswith("#") and "=" in linha:
             chave, valor = linha.split("=", 1)
