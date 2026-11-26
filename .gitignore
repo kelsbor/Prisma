@@ -1,0 +1,11 @@
+# Raiz do repositório Prisma (projeto_agentes + PrismaAPP + agente-sql)
+# Dados e segredos locais: nunca versionar
+*.db
+*.db-wal
+*.db-shm
+.env
+config.json
+.venv/
+__pycache__/
+*.pyc
+.run/
