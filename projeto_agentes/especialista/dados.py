@@ -1,58 +1,63 @@
-"""Dados do usuário, buscados no Agente de Armazenamento via MCP. As contas são feitas em Python."""
+"""Dados da pessoa, lidos do banco da Pluggy (o mesmo do PrismaAPP), somente leitura.
 
-import re
-from collections import defaultdict
+O banco é gerado pelo agente-sql (./prisma.sh pluggy) e tem a view vw_registers, a mesma que as telas
+do app usam: valor_gasto já exclui transferências (fatura, mesma titularidade, investimentos) e
+desconta estornos; valor_entrada só conta entradas em conta. As contas são feitas em SQL/Python,
+nunca pelo Gemini.
+"""
+
+import sqlite3
+from datetime import date
 
 from comum.cliente_mcp import conectar
+from comum.config import BANCO_APP
 
 
-# Dinheiro que só mudou de lugar (aplicação, resgate, transferência para a mesma titularidade):
-# não é ganho nem gasto, então fica fora das somas.
-MOVIMENTACAO_INTERNA = re.compile(r"APLICACAO|RESGATE|MESMA TITULARIDADE", re.I)
+class SemDados(RuntimeError):
+    pass
 
 
-async def transacoes(titular_id: str) -> list[dict]:
-    async with conectar() as cliente:
-        resp = await cliente.chamar("consultar_titular", {"titular_id": titular_id})
-    return sorted((r["dados"] for r in resp["registros"] if r["dados"].get("data")), key=lambda t: t["data"])
+def _conectar() -> sqlite3.Connection:
+    if not BANCO_APP.exists():
+        raise SemDados(f"Banco da Pluggy não encontrado em {BANCO_APP}. Rode ./prisma.sh pluggy.")
+    con = sqlite3.connect(f"file:{BANCO_APP}?mode=ro", uri=True)
+    con.execute("PRAGMA query_only = 1")
+    return con
 
 
-def resumo(ts: list[dict], periodo: str | None = None) -> dict:
-    """Resumo de um mês (AAAA-MM). Sem período, usa o mês mais recente que tem transações."""
-    meses = sorted({t["data"][:7] for t in ts})
-    if not meses:
-        return {"erro": "Nenhuma transação para este titular. Importe extratos com o Coletor."}
-    periodo = periodo or meses[-1]
-    do_mes = [t for t in ts if t["data"].startswith(periodo)
-              and not MOVIMENTACAO_INTERNA.search(t.get("descricao", ""))]
-    entradas = sum(t["valor"] for t in do_mes if t["valor"] > 0)
-    saidas = -sum(t["valor"] for t in do_mes if t["valor"] < 0)
-    por_descricao = defaultdict(float)
-    for t in do_mes:
-        if t["valor"] < 0:
-            por_descricao[t["descricao"]] -= t["valor"]
+def resumo(periodo: str | None = None, hoje: date | None = None) -> dict:
+    """Resumo de um mês (AAAA-MM): entradas, gastos, saldo do mês, maiores categorias e contas.
+    Sem período, usa o mês atual (até hoje). Parcelas futuras ficam de fora."""
+    hoje = (hoje or date.today()).isoformat()
+    periodo = periodo or hoje[:7]
+    with _conectar() as con:
+        meses = [r[0] for r in con.execute(
+            "SELECT DISTINCT substr(data, 1, 7) FROM vw_registers WHERE data <= ? ORDER BY 1", (hoje,))]
+        if not meses:
+            raise SemDados("O banco da Pluggy não tem transações.")
+        filtro = "substr(data, 1, 7) = ? AND data <= ?"
+        entradas, gastos = con.execute(
+            f"SELECT COALESCE(SUM(valor_entrada), 0), COALESCE(SUM(valor_gasto), 0) FROM vw_registers WHERE {filtro}",
+            (periodo, hoje)).fetchone()
+        categorias = con.execute(
+            f"SELECT categoria, ROUND(SUM(valor_gasto), 2) AS total FROM vw_registers WHERE {filtro} "
+            "GROUP BY categoria HAVING total > 0 ORDER BY total DESC LIMIT 8", (periodo, hoje)).fetchall()
+        try:
+            contas = con.execute(
+                "SELECT trim(name), CASE type WHEN 'CREDIT' THEN 'cartão' ELSE 'conta' END, "
+                "ROUND(balanceCents / 100.0, 2), ROUND(availableLimitCents / 100.0, 2) FROM account_dim").fetchall()
+        except sqlite3.OperationalError:                  # banco copiado do celular, sem account_dim
+            contas = []
     return {
         "periodo": periodo,
         "meses_com_dados": meses,
         "entradas": round(entradas, 2),
-        "saidas": round(saidas, 2),
-        "saldo": round(entradas - saidas, 2),
-        "maiores_gastos_por_descricao": [{"descricao": d, "total": round(v, 2)}
-                                         for d, v in sorted(por_descricao.items(), key=lambda x: -x[1])[:8]],
-        "transacoes_com_alerta": [{"data": t["data"], "descricao": t["descricao"], "valor": t["valor"],
-                                   "alertas": t["alertas"]} for t in do_mes if t.get("alertas")],
+        "gastos": round(gastos, 2),
+        "saldo_do_mes": round(entradas - gastos, 2),
+        "maiores_gastos_por_categoria": [{"categoria": c, "total": t} for c, t in categorias],
+        "contas": [{"conta": n, "tipo": tp, "saldo_ou_fatura": s, "limite_disponivel": lim}
+                   for n, tp, s, lim in contas],
     }
-
-
-def dados_do_usuario(ts: list[dict], periodo: str | None = None) -> dict:
-    """O que vai para o Gemini como DADOS DO USUÁRIO: o resumo do mês e o perfil financeiro (Agente de Perfil Financeiro)."""
-    dados = resumo(ts, periodo)
-    try:
-        from perfil.score import calcular, resumo_para_prompt
-        dados["perfil_financeiro"] = resumo_para_prompt(calcular(ts))
-    except Exception as e:                      # o perfil é um extra: a resposta não depende dele
-        dados["perfil_financeiro"] = {"disponivel": False, "motivo": str(e)}
-    return dados
 
 
 async def indicadores() -> list[str]:

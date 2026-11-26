@@ -21,16 +21,18 @@ i.add_argument("--refazer", action="store_true", help="apaga o índice e indexa 
 b = sub.add_parser("buscar", help="mostra os trechos mais relevantes para uma pergunta")
 b.add_argument("pergunta")
 b.add_argument("-k", type=int, default=4, help="quantos trechos mostrar (padrão: 4)")
-r = sub.add_parser("resumo", help="resumo do mês com dados do Armazenamento")
-r.add_argument("--titular", required=True)
+r = sub.add_parser("resumo", help="resumo do mês com os dados da Pluggy")
 r.add_argument("--periodo")
 p = sub.add_parser("perguntar", help="resposta do especialista (RAG + dados + Gemini)")
 p.add_argument("pergunta")
-p.add_argument("--titular")
+p.add_argument("--com-dados", action="store_true", help="inclui o resumo do mês (dados da Pluggy) na resposta")
 p.add_argument("--periodo")
 lp = sub.add_parser("prompts", help="mostra os últimos prompts registrados (~/.prisma/logs/prompts.jsonl)")
 lp.add_argument("-n", type=int, default=1, help="quantos (padrão: o último)")
 lp.add_argument("--json", action="store_true", help="registros completos em JSON")
+av = sub.add_parser("avaliar", help="mede a busca com perguntas de teste e sugere a nota mínima")
+av.add_argument("-k", type=int, default=4)
+av.add_argument("--json", action="store_true")
 args = parser.parse_args()
 
 def executar():
@@ -47,7 +49,7 @@ def executar():
         for t in rag.buscar(args.pergunta, args.k):
             print(f"\n[{t['nota']:.3f}] {t['fonte']}, p. {t['pagina']}\n{t['texto']}")   # trecho inteiro
     elif args.comando == "resumo":
-        mostrar(dados.resumo(asyncio.run(dados.transacoes(args.titular)), args.periodo))
+        mostrar(dados.resumo(args.periodo))
     elif args.comando == "prompts":
         from especialista import log_prompts
         regs = log_prompts.ultimos(args.n)
@@ -65,8 +67,12 @@ def executar():
             print(r.get("prompt") or "(não montado)")
             print("----- resposta -----")
             print(r.get("resposta"))
+    elif args.comando == "avaliar":
+        from especialista import avaliacao
+        r = avaliacao.avaliar(args.k)
+        mostrar(r) if args.json else avaliacao.imprimir(r)
     elif args.comando == "perguntar":
-        resumo = dados.dados_do_usuario(asyncio.run(dados.transacoes(args.titular)), args.periodo) if args.titular else None
+        resumo = dados.resumo(args.periodo) if args.com_dados else None
         mostrar(agente.perguntar(args.pergunta, resumo, asyncio.run(dados.indicadores())))
 
 

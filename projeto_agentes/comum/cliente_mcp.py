@@ -1,9 +1,8 @@
-"""Cliente MCP para falar com outro agente do Prisma (Armazenamento, Indicadores...).
+"""Cliente MCP para um agente do Prisma falar com outro (hoje: o Especialista com o Indicadores).
 
-- Padrão: inicia o Agente de Armazenamento deste projeto como subprocesso e
-  conversa com ele via stdio (um comando só, nada fica escutando na rede).
-- Com ARMAZENAMENTO_URL=http://127.0.0.1:8000: conversa com um Armazenamento já iniciado
-  com `python -m armazenamento --http`, usando o token de ~/.prisma/chaves.json.
+- Com <AGENTE>_URL definida (o prisma.sh define, ex.: INDICADORES_URL): conversa por HTTP com o
+  serviço já no ar, usando o token de ~/.prisma/chaves.json.
+- Sem ela: inicia o agente como subprocesso e conversa via stdio (nada fica escutando na rede).
 """
 
 import json
@@ -44,7 +43,7 @@ def _timeout_http():
 
 
 @asynccontextmanager
-async def conectar(agente: str = "armazenamento"):
+async def conectar(agente: str):
     """Abre uma sessão MCP com o agente: por HTTP se <AGENTE>_URL estiver definida, senão por stdio."""
     url = os.getenv(f"{agente.upper()}_URL")
     if url:

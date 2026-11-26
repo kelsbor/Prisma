@@ -1,23 +1,21 @@
 # Prisma
 
-Ferramenta de organização financeira baseada em agentes de IA, que roda na sua máquina.
+Ferramenta de organização financeira com agentes de IA. Os dados vêm do **Open Finance, pela Pluggy**, ficam num banco local e são consultados por agentes que rodam na sua máquina.
 
-O projeto parte de uma pergunta: a inteligência artificial vai **substituir** o humano ou **ampliar** o seu potencial? O Prisma explora a segunda hipótese. Os agentes cuidam da parte mecânica (ler extratos, registrar, somar, medir o risco, buscar explicações confiáveis) e as decisões continuam com a pessoa.
+O projeto parte de uma pergunta: a inteligência artificial vai **substituir** o humano ou **ampliar** o seu potencial? O Prisma explora a segunda hipótese. Os agentes cuidam da parte mecânica (buscar os dados, somar, consultar taxas oficiais, achar explicações confiáveis) e as decisões continuam com a pessoa.
 
-> **Status:** MVP em desenvolvimento. Cinco agentes funcionando localmente e conversando entre si por MCP, um deles com redes neurais e outro integrado à API pública do Banco Central.
+> **Status:** MVP em desenvolvimento. Três agentes MCP locais (Especialista, Indicadores e Consultas), o agente-sql com o download da Pluggy e o assistente do PrismaAPP.
 
 ## Sumário
 
 - [Sobre o projeto](#sobre-o-projeto)
 - [Arquitetura](#arquitetura)
-- [Como os agentes interagem](#como-os-agentes-interagem)
-- [Os agentes em detalhe](#os-agentes-em-detalhe)
-  - [Armazenamento](#agente-de-armazenamento) · [Coletor](#agente-coletor) · [Especialista](#agente-especialista) · [Perfil Financeiro](#agente-de-perfil-financeiro) · [Indicadores](#agente-de-indicadores)
+- [Os dados: Pluggy](#os-dados-pluggy)
+- [Os agentes](#os-agentes)
 - [Modos de embeddings](#modos-de-embeddings)
 - [Prompt enviado ao Gemini](#prompt-enviado-ao-gemini)
-- [De onde vêm os dados](#de-onde-vêm-os-dados)
 - [Base de conhecimento](#base-de-conhecimento)
-- [Como inicializar o projeto](#como-inicializar-o-projeto)
+- [Como rodar](#como-rodar)
 - [Todos os comandos](#todos-os-comandos)
 - [Configuração (.env)](#configuração-env)
 - [Segurança e LGPD](#segurança-e-lgpd)
@@ -25,8 +23,7 @@ O projeto parte de uma pergunta: a inteligência artificial vai **substituir** o
 - [Testes](#testes)
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Problemas comuns](#problemas-comuns)
-- [Limitações conhecidas](#limitações-conhecidas)
-- [Próximos passos](#próximos-passos)
+- [Limitações e próximos passos](#limitações-e-próximos-passos)
 
 ## Sobre o projeto
 
@@ -43,226 +40,69 @@ O projeto parte de uma pergunta: a inteligência artificial vai **substituir** o
 
 ## Arquitetura
 
-![Arquitetura do Prisma: cinco agentes MCP locais, o Orientador CrewAI e as APIs externas](docs/arquitetura.svg)
+![Arquitetura do Prisma: Pluggy, banco local, três agentes MCP e o assistente do PrismaAPP](docs/arquitetura.svg)
 
-São cinco agentes independentes. Cada um é um servidor **MCP** (Model Context Protocol) e pode rodar de dois jeitos: como serviço local em HTTP (`127.0.0.1`, com token), que é o que o `prisma.sh` faz, ou por stdio, aberto sob demanda por um cliente como o VS Code ou o Claude Code.
-
-| Agente | Porta | O que faz | Usa IA? |
+| Parte | Porta | O que faz | Usa IA? |
 |---|---|---|---|
-| **Armazenamento** | 8000 | Guarda, consulta e apaga transações por titular, criptografadas. É o único que acessa o banco. | Não |
-| **Coletor** | 8001 | Lê extratos (CSV, TXT, XLSX, OFX, PDF, imagem), padroniza datas e valores, aponta problemas e grava no Armazenamento. | Não |
-| **Especialista** | 8002 | Responde dúvidas com RAG sobre 37 materiais de educação financeira, usando o resumo do mês e o perfil financeiro da pessoa. | Gemini (opcional) |
-| **Perfil Financeiro** | 8003 | Monta o perfil financeiro da pessoa: score de risco de endividamento (0 a 100), transações fora do padrão e a classificação "endividado ou não". | Duas redes neurais próprias |
-| **Indicadores** | 8004 | Busca dados oficiais na API pública do Banco Central: juros médios do rotativo, do cheque especial e do crédito pessoal, Selic e inflação. Simula quanto uma dívida cresce. | Não |
-
-Acima deles fica o **Orientador** (opcional), um agente do CrewAI com o Gemini que usa os agentes como ferramentas e decide quais chamar. Veja [Orquestrar com CrewAI](#orquestrar-com-crewai-opcional).
-
-**Orquestrador ou conversa direta?** Os dois. O Orientador coordena o que depende de interpretar a pergunta da pessoa. As trocas de rotina são diretas, agente com agente, por MCP: o Coletor grava no Armazenamento, o Especialista e o Perfil Financeiro leem dele, e o Especialista pede as taxas oficiais ao Agente de Indicadores.
+| **agente-sql** (`../agente-sql`) | — | Baixa contas, cartões e transações da Pluggy para o banco local (`./prisma.sh pluggy`). Também responde perguntas com SQL, incluindo saldo, fatura e limite. | Gemini (só nas perguntas) |
+| **Especialista** | 8002 | Responde dúvidas de educação financeira com RAG sobre 37 materiais, usando, se pedido, o resumo do mês da pessoa e as taxas do Banco Central. | Gemini (opcional) |
+| **Indicadores** | 8004 | Busca dados oficiais na API pública do Banco Central: juros do rotativo, do cheque especial e do crédito pessoal, Selic e inflação. Simula quanto uma dívida cresce. | Não |
+| **Consultas** | 8006 | Responde perguntas exatas sobre os gastos com o assistente text-to-SQL do PrismaAPP: SQL validado, banco somente leitura e conferência dos valores. | Gemini |
+| **Assistente do app** (`../PrismaAPP/agent`) | 8010 | Servidor do assistente do app Android; o app executa o SQL no próprio celular. | Gemini |
 
 Três princípios guiam o desenho:
 
-1. **Um único dono dos dados.** Coletor, Especialista e Perfil Financeiro nunca abrem o banco. Eles pedem ao Armazenamento, por MCP, que é quem criptografa e descriptografa.
-2. **Números vêm do Python.** Somas, saldos e o score de risco são calculados em código. O Gemini, quando usado, só escreve o texto.
-3. **Tudo local por padrão.** Os serviços escutam só em `127.0.0.1`. O que sai da máquina (Gemini, a consulta de séries ao Banco Central e, opcionalmente, DocStrange) está descrito em [Segurança e LGPD](#segurança-e-lgpd).
+1. **Uma fonte de dados.** Tudo vem da Pluggy. O banco local tem as mesmas tabelas e a mesma view `vw_registers` do PrismaAPP, e os agentes só o abrem **para leitura**.
+2. **Números vêm do SQL e do Python.** Somas, saldos e taxas são calculados em código ou vêm do Banco Central. O Gemini, quando usado, só escreve o texto.
+3. **Tudo local por padrão.** Os serviços escutam só em `127.0.0.1`, com token. O que sai da máquina está em [Segurança e LGPD](#segurança-e-lgpd).
 
-## Como os agentes interagem
+**Agentes trabalhando juntos.** O Especialista pede as taxas oficiais ao Agente de Indicadores **por MCP**, a cada pergunta, e lê o resumo do mês do banco da Pluggy. Os agentes também podem ser usados como ferramentas por um cliente MCP, como o chat do VS Code em modo agente: o `.vscode/mcp.json` registra os três agentes e o agente-sql, e o chat decide qual chamar.
 
-| Quem chama | Quem responde | Como | Para quê |
-|---|---|---|---|
-| Coletor | Armazenamento | MCP `salvar_lote` | gravar as transações lidas do extrato, sem duplicar |
-| Especialista | Armazenamento | MCP `consultar_titular` | buscar as transações para o resumo do mês |
-| Perfil Financeiro | Armazenamento | MCP `consultar_titular` | buscar as transações para o perfil financeiro |
-| Especialista | Perfil Financeiro | chamada em Python (`perfil.score`) | levar o score e os alertas para o prompt |
-| Especialista | Indicadores | MCP `juros_do_credito` | levar as taxas oficiais do Banco Central para o prompt |
-| Indicadores | API do Banco Central | HTTPS (SGS, pública) | buscar juros médios, Selic e inflação (com cache de 12 horas) |
-| Orientador (CrewAI) | Perfil, Especialista, Indicadores | MCP | o LLM escolhe as ferramentas conforme a pergunta |
-| Especialista | Chroma | busca vetorial | achar os trechos da base mais parecidos com a pergunta |
-| Especialista | Gemini | API (opcional) | escrever a resposta a partir dos trechos e dos números |
+## Os dados: Pluggy
 
-Quando os agentes são usados fora do `prisma.sh`, sem `ARMAZENAMENTO_URL` e `INDICADORES_URL`, eles abrem o Armazenamento e o Indicadores como subprocessos e conversam com eles por stdio. Os dados ficam no mesmo banco (`~/.prisma/dados.db`) nos dois casos.
+![Dados da Pluggy: o gerar_banco.py baixa para um banco local que os agentes leem](docs/dados-pluggy.svg)
 
-## Os agentes em detalhe
+O `./prisma.sh pluggy` roda o `gerar_banco.py` do agente-sql: ele se autentica na API da Pluggy com o Client ID e o Client Secret, lê as categorias e, para cada banco conectado (`PLUGGY_ITEM_IDS`), as contas, os cartões e todas as transações. O resultado é um SQLite em `~/.prisma/app/prisma.db` com:
 
-Cada diagrama abaixo mostra o caminho dos dados dentro de um agente. As imagens ficam em `docs/` e são geradas por `python docs/gerar_diagramas.py`.
+- `vw_registers`: uma linha por transação, com data, descrição, categoria em português, conta, banco, parcela e os campos prontos `valor_gasto` (já sem transferências e pagamento de fatura, e com estornos descontados) e `valor_entrada`;
+- `account_dim`: saldo de cada conta, fatura atual e limite de cada cartão.
 
-### Agente de Armazenamento
+Rodar de novo atualiza o banco. O arquivo fica com permissão `600`, porque contém os seus dados financeiros reais, e nunca vai para o Git.
 
-![Fluxo do Agente de Armazenamento](docs/agente-armazenamento.svg)
+Também dá para usar o banco do celular: copie o `prisma.db` do app (Android Studio → **Device Explorer** → `/data/data/br.com.prisma.financas/databases/`) para `~/.prisma/app/`. Nesse caso, saldo e limite não ficam disponíveis, porque o app não guarda a `account_dim` da mesma forma.
 
-É o único agente que acessa o banco, e por isso concentra as proteções de dados.
-
-- **Titular pseudonimizado.** O ID (por exemplo, um CPF) é normalizado, sem espaços, pontos, traços e barras, e vira um hash HMAC-SHA256. `000.000.000-00` e `00000000000` são o mesmo titular, e o ID nunca é gravado em claro.
-- **Dados criptografados.** Cada transação é um JSON livre, criptografado inteiro com Fernet antes de ir para o SQLite.
-- **Sem duplicatas.** Se a transação tem o campo `chave`, ele também vira HMAC, ligado ao titular, e um índice único impede que a mesma transação entre duas vezes. Reimportar um extrato devolve "já existiam".
-- **Consulta.** Busca pelo HMAC do titular e descriptografa. Registros cifrados com outra chave aparecem em `ilegiveis`, em vez de derrubar a consulta.
-- **Exclusão.** `eliminar_titular` apaga tudo do titular (LGPD, art. 18).
-
-| Ferramenta MCP | Parâmetros | Retorno |
-|---|---|---|
-| `salvar_transacao` | `titular_id`, `dados` | `{"status": "ok", "id": N}` ou `{"status": "ja_existia"}` |
-| `salvar_lote` | `titular_id`, `transacoes` (até 500) | quantas foram gravadas e quantas já existiam |
-| `consultar_titular` | `titular_id` | `registros` descriptografados (e `ilegiveis`, se houver) |
-| `eliminar_titular` | `titular_id` | quantos registros foram apagados |
-
-Arquivos: banco em `~/.prisma/dados.db`; chaves (`ENCRYPTION_KEY`, `HASH_KEY`, `MCP_TOKEN`) em `~/.prisma/chaves.json`, geradas na primeira execução. Código: `armazenamento/app.py`.
-
-### Agente Coletor
-
-![Fluxo do Agente Coletor](docs/agente-coletor.svg)
-
-Lê extratos, padroniza e confere. Não usa IA: todas as regras são fixas e explicáveis.
-
-**1. Leitura por formato**
-
-| Formato | Como é lido |
-|---|---|
-| CSV, TSV, TXT delimitado, XLSX/XLS, OFX | localmente, de forma determinística |
-| PDF com texto | localmente com pypdf, se o DocStrange não estiver configurado |
-| PDF escaneado, imagens, DOCX, PPTX, HTML | DocStrange (opcional; o modo nuvem envia o arquivo para fora do Brasil) |
-
-**2. Normalização.** Valores como `-R$ 1.384,62`, `1.384,62-`, `(32,90)` e `32,90 D` viram números com sinal. Datas em `AAAA-MM-DD`, `DD/MM/AAAA`, `DD/MM/AA` e `DD/MM` (com o ano deduzido do período do extrato) viram datas.
-
-**3. Qualidade.** Nada é corrigido sozinho: os problemas viram alertas gravados junto da transação.
-
-| Alerta | Quando aparece |
-|---|---|
-| `repetido_no_mesmo_dia` | o mesmo lançamento duas vezes no mesmo dia (é mantido: pode ser uma cobrança dupla real) |
-| `valor_irrisorio` | valor abaixo de R$ 1,00, como um PIX de teste |
-| `descricao_parecida_com:X` | descrição quase igual a outra mais frequente (possível erro de digitação) |
-| `estorna:<data>` | estorno ligado ao débito original |
-| `saldo_nao_confere` | o saldo linha a linha do extrato não bate com os valores (só no relatório, não é gravado) |
-
-Quando o extrato traz saldo inicial e final, o Coletor também confere se saldo inicial + movimentos = saldo final.
-
-**4. Consolidação.** Vários arquivos da mesma conta viram uma lista única. A identidade de cada transação é **data + valor + ordem no dia**, porque a descrição muda entre fontes. Quando a mesma transação aparece em mais de um arquivo, vale a descrição da fonte mais confiável: CSV/OFX, depois planilha/TXT, depois PDF, depois imagem.
-
-**5. Saída.** `analisar` só mostra o relatório. `importar` envia ao Armazenamento em lotes de 200, pelo `salvar_lote`.
-
-Código: `coletor/extracao.py`, `qualidade.py`, `pipeline.py` e `app.py`.
+## Os agentes
 
 ### Agente Especialista
 
 ![Fluxo do Agente Especialista](docs/agente-especialista.svg)
 
-Responde dúvidas de educação financeira com RAG (busca em uma base de conhecimento) e com os números da própria pessoa. Tem dois fluxos.
+Responde dúvidas de educação financeira com RAG (busca numa base de conhecimento) e, quando a pessoa pede, com os números dela.
 
-**Indexar** (`./prisma.sh indexar`), feito uma vez e sempre que a base muda:
+**Indexar** (`./prisma.sh indexar`), feito uma vez e sempre que a base muda: cada página dos JSONL em `base_conhecimento/` é limpa e dividida em pedaços de até 800 caracteres, com 150 de sobreposição; cada pedaço vira um vetor e vai para o Chroma, com fonte e página. Só o que mudou é reprocessado.
 
-- cada página dos JSONL em `base_conhecimento/` é limpa (caracteres de controle, quebras de linha) e dividida em pedaços de até 800 caracteres, com 150 de sobreposição;
-- páginas com menos de 80 caracteres, arquivos de backup e cópias idênticas ficam de fora;
-- cada pedaço vira um vetor (veja [Modos de embeddings](#modos-de-embeddings)) e vai para o Chroma, com fonte e página;
-- só o que mudou é reprocessado: um manifesto guarda o hash de cada arquivo. Se for interrompido, rodar de novo retoma de onde parou.
+**Perguntar** (`./prisma.sh especialista perguntar "..." [--com-dados]`):
 
-**Perguntar** (`./prisma.sh especialista perguntar`):
-
-1. A pergunta vira vetor pelo mesmo modelo do índice, e o Chroma traz os 4 trechos mais parecidos, cada um com uma nota de 0 a 1.
-2. Só passam os trechos com nota acima de `PRISMA_NOTA_MINIMA`.
-3. Com `--titular`, entram também o resumo do mês (entradas, saídas, saldo, maiores gastos, alertas), calculado em Python a partir do Armazenamento, e o perfil do Agente de Perfil Financeiro.
-4. Com `GOOGLE_API_KEY`, o Gemini escreve a resposta seguindo regras fixas: usar só os números dos dados e só os conceitos dos trechos; citar fonte e página; seguir as atualizações da equipe quando houver conflito; não recomendar produtos financeiros; não julgar gastos; acolher quando o risco é alto; tratar transações atípicas como perguntas.
-5. Sem a chave, a resposta são os trechos mais próximos, com as fontes.
+1. A pergunta vira vetor, e o Chroma traz os 4 trechos mais parecidos, cada um com uma nota de 0 a 1. Só passam os que têm nota acima de `PRISMA_NOTA_MINIMA`.
+2. O Especialista pede ao **Agente de Indicadores, por MCP**, os juros médios e a Selic.
+3. Com `--com-dados`, entra também o **resumo do mês**, calculado com SQL no banco da Pluggy: entradas, gastos, saldo do mês, maiores categorias e saldo, fatura e limite das contas.
+4. Com `GOOGLE_API_KEY`, o Gemini escreve a resposta seguindo regras fixas (veja [Prompt enviado ao Gemini](#prompt-enviado-ao-gemini)). Sem a chave, a resposta são os trechos mais próximos, com as fontes.
 
 | Ferramenta MCP | Parâmetros | O que faz |
 |---|---|---|
 | `buscar_conhecimento` | `pergunta`, `k` (opcional, até 10) | trechos com fonte, página e nota |
-| `consultar_transacoes` | `titular_id`, `periodo` (opcional) | resumo do mês |
-| `perguntar` | `pergunta`, `titular_id` e `periodo` (opcionais) | resposta com RAG, dados e perfil financeiro |
+| `resumo_do_mes` | `periodo` (opcional, AAAA-MM) | resumo do mês com os dados da Pluggy |
+| `perguntar` | `pergunta`, `usar_meus_dados` e `periodo` (opcionais) | resposta com RAG, taxas oficiais e, se pedido, o resumo do mês |
 | `status_base` | nenhum | arquivos indexados e pendentes |
 | `atualizar_base` | nenhum | indexa o que mudou |
 
-Código: `especialista/rag.py`, `dados.py`, `agente.py` e `app.py`.
-
-### Agente de Perfil Financeiro
-
-![Fluxo do Agente de Perfil Financeiro](docs/agente-perfil.svg)
-
-Monta o perfil financeiro de cada titular guardado no Armazenamento. O centro dele é um score de risco de endividamento de 0 a 100; junto vêm as transações fora do padrão e a classificação "endividado ou não", ambas por rede neural. Para o score, as transações são categorizadas pela descrição e seguem por dois caminhos: indicadores de fluxo de caixa em Python (até 90 pontos) e a rede neural (até 10 pontos). Cada componente tem um teto, para que sempre dê para explicar de onde veio cada ponto:
-
-| Componente | Teto | 0 pontos quando... | Teto quando... |
-|---|---:|---|---|
-| Comprometimento da renda | 35 | saídas ≤ 70% da renda | saídas ≥ 120% da renda |
-| Meses no vermelho | 20 | nenhum mês negativo | todos os meses negativos |
-| Crédito caro (juros, IOF) | 15 | nenhum mês com juros | juros em todos os meses |
-| Fatura do cartão | 10 | fatura ≤ 30% da renda | fatura ≥ 60% da renda |
-| Renda irregular | 5 | variação ≤ 10% | variação ≥ 50% |
-| Sem reserva | 5 | aplicou mais do que resgatou | aplicou ≤ resgatou |
-| Comportamento atípico (**rede neural**) | 10 | ≤ 5% das compras atípicas | ≥ 20% atípicas |
-
-**Faixas:** 0 a 39 baixo, 40 a 69 moderado, 70 a 100 alto. Os limites estão em `perfil/score.py` e são um ponto de partida da equipe, não uma regra regulatória. São analisados os últimos 6 meses com dados. Sem modelo treinado, o componente da rede fica de fora e o score é reescalado para 0 a 100.
-
-Exemplo com o titular fictício:
-
-```
-Score de risco: 44/100 (moderado) · meses 2026-08, 2026-09, 2026-10
-   25.9/35  comprometimento da renda      saídas médias de R$ 3.990,01 para R$ 3.726,67 de renda (107%)
-    6.7/20  meses no vermelho             1 de 3 meses fecharam negativos
-    5.0/15  crédito caro (juros, IOF)     juros ou IOF em 1 de 3 meses, total de R$ 42,59
-    4.9/10  comportamento atípico (rede)  7 de 57 compras fora do padrão da própria pessoa
-  2026-09-03 PAG*IFOOD         -48.70  score 3.76  possível cobrança repetida
-  2026-09-04 PIX ENVIADO - J S  -0.01  score 1.65  valor muito abaixo do padrão desta categoria, ...
-```
-
-**A rede neural** é o autoencoder de anomalias do projeto `NeuralNetwork/` (detalhes em [`NeuralNetwork/docs/RELATORIO_TECNICO.md`](NeuralNetwork/docs/RELATORIO_TECNICO.md)). Ela aprende, com dados sintéticos, como são as transações normais, comprimindo cada uma em 6 números e reconstruindo de volta (27→32→16→6→16→32→27). Para o titular, cada compra vira as mesmas 27 features do projeto: valor relativo ao histórico da própria pessoa, valor diante da renda, estabelecimento novo, intervalo desde a transação anterior, repetição no mesmo dia, dia da semana e do mês, e a categoria. Quanto pior a reconstrução, mais fora do padrão está a compra. Acima do limiar da validação, ela é marcada como atípica e aparece com os motivos em português.
-
-O código de features é o do próprio `NeuralNetwork/src`, sem cópia. O treino usa o modo **sem hora**, porque os extratos do Prisma só têm a data, e o modo **contaminado**, como em dados reais, sem rótulos.
-
-#### Classificação de endividamento (segunda rede neural)
-
-Além do autoencoder, o Agente de Perfil Financeiro tem uma **rede classificadora** que responde a uma pergunta direta: **a pessoa está ou não endividada?**
-
-**Definição.** Numa janela de 3 meses, a pessoa é considerada endividada se a conta ficou **no vermelho** (saldo negativo, usando o limite do banco) em **pelo menos 25% dos dias**.
-
-**Por que precisa de uma rede.** O extrato que o Prisma lê não traz o saldo da conta, só entradas e saídas. Duas pessoas com o mesmo fluxo podem estar em situações opostas, porque uma tem reserva e a outra não. A rede aprende, com os dados sintéticos (que têm o saldo verdadeiro de cada dia), a reconhecer pelo padrão do fluxo de caixa quem costuma estar no vermelho.
-
-**Como funciona.**
-
-- **Entrada:** 13 números calculados do fluxo de 3 meses: saídas em relação à renda, sobra ou falta no período e no último mês, meses com fluxo negativo, variação da renda, peso dos gastos essenciais e de delivery/lazer/compras, transferências, quanto guardou, tendência das saídas, maior gasto, nível de renda e quantidade de transações. A mesma função calcula esses números para os dados sintéticos e para o extrato do titular.
-- **Rede:** MLP 13 → 32 → 16 → 1, com saída entre 0 e 1 (a probabilidade estimada).
-- **Treino:** 1.000 usuários sintéticos, 34.000 janelas de 3 meses, das quais 15% são de pessoas endividadas. Os usuários são separados em treino (70%), validação (15%) e teste (15%), para que a rede seja avaliada em pessoas que nunca viu. O limiar de decisão é o que dá o melhor equilíbrio entre acertos e alarmes falsos (F1) na validação.
-
-**Resultados no teste** (pessoas que a rede nunca viu):
-
-| Modelo | ROC-AUC | PR-AUC | Precisão | Recall | F1 |
-|---|---:|---:|---:|---:|---:|
-| **Rede neural (MLP)** | 0,78 | 0,31 | 0,27 | 0,66 | 0,38 |
-| Regressão logística | 0,78 | 0,31 | 0,26 | 0,67 | 0,37 |
-| Regra simples: meses com fluxo negativo | 0,68 | 0,20 | 0,16 | 0,82 | 0,27 |
-
-Na prática: a rede acha **2 de cada 3 pessoas endividadas**, mas **3 de cada 4 alertas são falsos**. Ela é bem melhor do que a regra simples, mas não melhor do que uma regressão logística, que é um modelo linear muito mais simples. O motivo é estrutural: o que mais decide se alguém fica no vermelho é o saldo que a pessoa já tinha, e isso não aparece no fluxo de 3 meses.
-
-**Exemplo com o titular fictício:**
-
-```
-Classificação (rede neural): ENDIVIDADO · probabilidade estimada 30% (limiar 16%)
-  definição: no vermelho em pelo menos 25% dos dias de uma janela de 3 meses
-  o que mais pesou: quantidade de transações (abaixo do típico); maior gasto do período (acima do típico);
-                    sobra ou falta no último mês (abaixo do típico)
-```
-
-A classificação aparece no `perfil ver` e na ferramenta `classificar_endividamento`, mas **não entra no score de 0 a 100 nem no prompt do Gemini**: com essa taxa de alarmes falsos, ela serve para estudo e para orientar a conversa, não para dizer a alguém que está endividado.
-
-**Treino** (`./prisma.sh perfil treinar`, uma vez, cerca de 5 minutos): treina as duas redes. Para o autoencoder, gera 200 usuários sintéticos com o gerador do projeto e usa o autoencoder em **PyTorch** (`treinar_autoencoder.py`) quando o torch está instalado; sem ele, o **autoencoder MLP do scikit-learn**, que o próprio projeto usa como comparação. Os pesos são exportados para `~/.prisma/modelos/perfil_autoencoder.npz` e, no dia a dia, o agente só precisa do NumPy. Para usar o PyTorch:
-
-```bash
-.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
-./prisma.sh perfil treinar --motor torch
-```
-
-| Ferramenta MCP | Parâmetros | O que faz |
-|---|---|---|
-| `perfil_financeiro` | `titular_id` | score, faixa, componentes, fatores e alertas da rede |
-| `transacoes_atipicas` | `titular_id`, `limite` (opcional) | só os alertas da rede neural |
-| `classificar_endividamento` | `titular_id` | a rede diz se está ou não endividado, com probabilidade e sinais |
-| `status_modelo` | nenhum | se as duas redes estão treinadas, com data e métricas no sintético |
-
-O Especialista usa o perfil quando recebe `--titular`: o score, os três principais fatores e as três transações mais atípicas entram em DADOS DO USUÁRIO.
-
-Código: `perfil/categorias.py`, `rede.py`, `score.py`, `classificador.py`, `dados.py` e `app.py`.
+Código: `especialista/rag.py`, `dados.py`, `agente.py`, `log_prompts.py` e `app.py`.
 
 ### Agente de Indicadores
 
 ![Fluxo do Agente de Indicadores](docs/agente-indicadores.svg)
 
-Integra o Prisma à **API pública do Banco Central** (SGS, Sistema Gerenciador de Séries Temporais), que é gratuita e não exige chave. Com ele, o Especialista e o Orientador falam de juros com dado oficial e atual, e não com o que está escrito em material antigo.
+Integra o Prisma à **API pública do Banco Central** (SGS, Sistema Gerenciador de Séries Temporais), que é gratuita e não exige chave. Com ele, o Especialista fala de juros com dado oficial e atual, e não com o que está escrito em material antigo.
 
 **Séries usadas** (códigos conferidos no portal de dados abertos do BCB):
 
@@ -293,15 +133,90 @@ Como funciona por dentro:
 ```bash
 ./prisma.sh indicadores juros                                   # tabela de juros com a Selic
 ./prisma.sh indicadores ver selic                               # um indicador, em JSON
-./prisma.sh indicadores simular --valor 1000 --modalidade rotativo --meses 3
+./prisma.sh especialista perguntar "Como saio do rotativo?" --com-dados
 ./prisma.sh indicadores historico rotativo -n 12
 ```
 
 Código: `indicadores/series.py` (códigos das séries), `bcb.py` (API e cache), `consultas.py` (contas) e `app.py`.
 
+### Agente de Consultas
+
+![Fluxo do Agente de Consultas](docs/agente-consultas.svg)
+
+Responde perguntas exatas sobre os gastos: "quanto gastei com mercado em outubro?", "quais foram minhas 5 maiores compras?". Em vez de pedir ao LLM que faça contas, o agente faz o Gemini **escrever uma consulta SQL**, que é validada e executada no banco da Pluggy.
+
+O agente **reaproveita o código do assistente do PrismaAPP** (`PrismaAPP/agent/src/prisma_agent`): o mesmo prompt, os mesmos exemplos, o mesmo filtro de manipulação e a mesma validação de SQL. O que o app faz no celular foi portado para Python:
+
+1. **Filtro de manipulação:** "ignore as instruções", SQL escrito na pergunta e afins são bloqueados sem chamar o modelo.
+2. **Gemini escreve o SQL** com o prompt do app, sabendo as categorias, contas e bancos que existem.
+3. **Validação:** um único `SELECT`, só na view `vw_registers`, sem comentários, sem `PRAGMA`, `ATTACH` nem escrita.
+4. **Execução somente leitura** no banco da Pluggy: no máximo 200 linhas e 3 segundos. Se o banco recusar o SQL, o Gemini tem uma chance de corrigir.
+5. **Gemini redige** a resposta a partir do resultado (até 50 linhas).
+6. **Guardião do R$:** todo valor em reais citado na resposta precisa existir no resultado; senão, a resposta é descartada e a pessoa recebe a tabela com os dados.
+
+| Ferramenta MCP | Parâmetros | O que faz |
+|---|---|---|
+| `perguntar_ao_app` | `pergunta` (até 300 caracteres) | resposta, SQL executado e tabela com o resultado |
+| `status_app` | nenhum | se o banco da Pluggy e o código do assistente foram encontrados, quantas transações e de que período |
+
+```bash
+./prisma.sh consultas status
+./prisma.sh especialista resumo
+./prisma.sh consultas perguntar "Quanto gastei com mercado em outubro?"
+```
+
+Precisa da `GOOGLE_API_KEY`, do código do PrismaAPP (em `../PrismaAPP/agent/src`, ou em `PRISMA_APP_AGENT_SRC`) e do banco da Pluggy. Código: `consultas/motor.py` e `app.py`.
+
+### agente-sql
+
+A pasta `agente-sql/` do repositório (ao lado de `projeto_agentes/` e `PrismaAPP/`) é o agente text-to-SQL simples da equipe. Ele faz duas coisas:
+
+- **Baixa os dados da Pluggy** (`gerar_banco.py`): é a fonte de dados de todo o Prisma (veja [Os dados: Pluggy](#os-dados-pluggy)).
+- **Responde perguntas com SQL** (`agente.py` e `servidor_mcp.py`, ferramenta MCP `consultar_financas`), incluindo **saldo, fatura atual e limite** dos cartões, que vêm da tabela `account_dim`.
+
+Ele usa o mesmo `.env` único: `GOOGLE_API_KEY`, `GEMINI_MODEL`, `PRISMA_APP_DB` e as credenciais `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` e `PLUGGY_ITEM_IDS`. Se existir um `agente-sql/config.json`, como no README da pasta, ele continua valendo.
+
+```bash
+./prisma.sh pluggy                                   # baixa da Pluggy para ~/.prisma/app/prisma.db
+./prisma.sh sql "qual meu saldo e quanto tenho de limite?"
+./prisma.sh consultas status                         # o Agente de Consultas usa o banco baixado
+```
+
+**Consultas ou agente-sql?** Os dois respondem com SQL sobre os mesmos dados:
+
+| | Agente de Consultas | agente-sql |
+|---|---|---|
+| Código | assistente do PrismaAPP | agente simples da equipe |
+| Fontes | só a `vw_registers` (transações) | `vw_registers` e `account_dim` (também saldo, fatura e limite) |
+| Validação do SQL | um único `SELECT`, só na view, sem comentários nem `PRAGMA` | nenhuma: o banco é aberto somente leitura, com limite de 5 s e 200 linhas |
+| Conferência da resposta | todo R$ citado precisa estar no resultado | não confere |
+| Servidor | HTTP no `prisma.sh` (porta 8006) | stdio (VS Code) |
+
+Para perguntas sobre gastos, prefira o Agente de Consultas, que tem mais proteções. Para saldo, fatura e limite, use o agente-sql.
+
+**Métricas do agente-sql.** O agente-sql registra latência e resultado de cada pergunta em `agente-sql/metricas.db` e tem um benchmark próprio com as perguntas de `projeto_agentes/perguntas_respostas_prisma(in).csv`: `cd ../agente-sql && python avaliar.py --hoje 2026-11-25` e `python metricas.py` (detalhes no `agente-sql/README.md`).
+
+### Assistente do PrismaAPP
+
+O servidor do assistente do app Android (`../PrismaAPP/agent`) sobe com o **mesmo `.env`**, na porta 8010:
+
+```bash
+./prisma.sh app           # sobe em 127.0.0.1:8010 e, com o celular conectado, faz o adb reverse
+./prisma.sh app parar
+```
+
+Na primeira vez, o comando gera um `APP_TOKENS` se o atual for curto demais (e, uma única vez, copia as chaves do `.env` antigo do app, se existir). Ele precisa do `uv` (`sudo snap install --classic astral-uv`). O app em si não muda: ele continua lendo o endereço e o token do `local.properties`, na raiz do PrismaAPP:
+
+```properties
+assistant.url=http\://127.0.0.1\:8010/
+assistant.token=<o valor de APP_TOKENS no .env>
+```
+
+Com o celular no cabo USB, o `./prisma.sh app` faz o `adb reverse tcp:8010 tcp:8010` (refaça se o celular reconectar). No emulador, use `assistant.url=http\://10.0.2.2\:8010/`, que dispensa o `adb reverse`. Depois de mudar o `local.properties`, gere o app de novo (**Run 'app'**).
+
 ## Modos de embeddings
 
-![Os dois modos de embeddings](docs/modos-embeddings.svg)
+![Os três modos de embeddings](docs/modos-embeddings.svg)
 
 Embeddings transformam um texto em uma lista de números que representa o seu significado. Textos sobre o mesmo assunto ficam com números parecidos, mesmo com palavras diferentes. O Especialista usa isso duas vezes: no `indexar`, para cada pedaço da base, e no `buscar`/`perguntar`, para a pergunta. O modo é escolhido por `PRISMA_EMBEDDINGS` no `.env`:
 
@@ -324,6 +239,8 @@ Embeddings transformam um texto em uma lista de números que representa o seu si
 | `PRISMA_EMBEDDINGS=local`, com chave | local | texto escrito pelo Gemini |
 | sem `PRISMA_EMBEDDINGS` (ou `=gemini`), com chave | Gemini | texto escrito pelo Gemini |
 
+**Terceiro modo, `lexico`: busca por palavras.** Não usa modelo nem internet: cada texto vira um vetor com as palavras e os pares de palavras (sem acentos e sem palavras comuns). Pega sinônimos mal, mas funciona em qualquer máquina, até numa rede que bloqueia o download do modelo local, e é o modo usado para testar a busca sem internet. Use `PRISMA_EMBEDDINGS=lexico`.
+
 **Trocar de modo.** Mude a variável e rode `./prisma.sh indexar` e `./prisma.sh reiniciar`. Cada modo tem o próprio índice, então voltar ao anterior não exige indexar de novo. Trocar o *modelo* de um modo (por exemplo, `PRISMA_MODELO_EMBEDDING_LOCAL`) refaz o índice daquele modo sozinho.
 
 **Modelo local maior.** O MiniLM é pequeno e rápido. Para separar melhor os assuntos, à custa de ~1 GB e de uma indexação mais lenta:
@@ -336,7 +253,7 @@ PRISMA_MODELO_EMBEDDING_LOCAL=sentence-transformers/paraphrase-multilingual-mpne
 
 ## Prompt enviado ao Gemini
 
-O Gemini só é chamado no `perguntar`, e uma única vez por pergunta. O Especialista monta **um texto** com regras fixas, os dados da pessoa, os trechos encontrados na base e a pergunta, e manda tudo junto. Nada mais vai para o Gemini: nem a base inteira, nem as transações uma a uma, nem o índice. O modelo do prompt fica em `especialista/agente.py` (`PROMPT`), e o modelo do Gemini em `PRISMA_MODELO_LLM`.
+O Especialista chama o Gemini uma única vez por pergunta, com um texto que junta regras fixas, os dados da pessoa (se pedidos), as taxas do Banco Central, os trechos encontrados na base e a pergunta. O modelo do prompt fica em `especialista/agente.py` (`PROMPT`), e o modelo do Gemini em `GEMINI_MODEL`, no `.env`.
 
 ### O modelo do prompt
 
@@ -351,8 +268,7 @@ Regras:
 - Se dois trechos se contradizem, siga as "Atualizações da equipe" do Prisma, que corrigem materiais antigos, e não repita a informação desatualizada.
 - Materiais antigos podem estar desatualizados: se um trecho falar de regra ou lei com data, avise que vale conferir se ainda está em vigor.
 - Não recomende produtos financeiros específicos (ações, fundos, bancos). Não julgue gastos.
-- O score do perfil_financeiro (risco de endividamento, de 0 a 100) serve para escolher o tom, não para ser repetido como nota. Se a faixa for "alto", comece acolhendo, sem tom de alarme, e priorize um passo pequeno e possível.
-- Transações atípicas são perguntas, nunca acusações ("essa compra repetida foi você mesmo?").
+- Se os gastos do mês passam das entradas, comece acolhendo, sem tom de alarme, e priorize um passo pequeno e possível.
 - Responda em português do Brasil, curto, com valores como R$ 1.234,56.
 
 ## DADOS DO USUÁRIO
@@ -370,118 +286,34 @@ Regras:
 
 | Campo | O que entra | Quando está vazio |
 |---|---|---|
-| `{dados}` | resumo do mês (entradas, saídas, saldo, maiores gastos, transações com alerta) e `perfil_financeiro` (score, faixa, 3 principais fatores, 3 transações atípicas), tudo calculado em Python | sem `--titular`: `(não informados)` |
-| `{trechos}` | os trechos com nota acima de `PRISMA_NOTA_MINIMA`, no formato `[fonte, p. N] texto` | nenhum trecho passou: `(nenhum trecho relevante)` |
+| `{dados}` | resumo do mês, calculado com SQL no banco da Pluggy: entradas, gastos, saldo do mês, maiores categorias, saldo e limite das contas | sem `--com-dados`: `(não informados)` |
 | `{indicadores}` | juros médios do rotativo, do cheque especial e do crédito pessoal, e a Selic, pedidos ao Agente de Indicadores | API do Banco Central fora do ar e sem cache: `(indisponíveis)` |
+| `{trechos}` | os trechos com nota acima de `PRISMA_NOTA_MINIMA`, no formato `[fonte, p. N] texto` | nenhum trecho passou: `(nenhum trecho relevante)` |
 | `{pergunta}` | a pergunta, como foi digitada | nunca |
 
 ### Por que cada regra existe
 
 | Regra | Motivo |
 |---|---|
-| Só os números dos dados e dos indicadores | o Gemini não faz contas: saldo, gastos e score vêm do Python, e as taxas de mercado vêm do Banco Central |
+| Só os números dos dados e dos indicadores | o Gemini não faz contas: os números vêm do SQL, do Python e do Banco Central |
 | Taxas de mercado com fonte e mês | a pessoa sabe que é uma média oficial, e de quando |
 | Só os conceitos dos trechos | evita respostas de memória, que podem estar erradas ou desatualizadas |
 | Citar fonte e página | a pessoa pode conferir, e a resposta vira educação financeira com referência |
 | Seguir as atualizações da equipe | materiais antigos da base têm regras que mudaram (por exemplo, o mínimo de 15% do cartão) |
-| Não recomendar produtos | o Prisma ajuda a planejar; não é recomendação de investimento |
-| Não julgar gastos, acolher com risco alto | o tom importa para quem está endividado |
-| Transações atípicas como perguntas | a rede neural aponta o que é incomum, não o que é errado |
-
-### Exemplo real
-
-Este é o texto exato que o código montou para `perguntar "Como saio do rotativo?" --titular 000.000.000-00`, com os dados fictícios e os 4 trechos que a busca local encontrou para essa pergunta. Na seção de indicadores, o exemplo mostra só as duas taxas de maio de 2026 citadas acima; com a API no ar, aparecem também o crédito pessoal, a média das pessoas físicas e a Selic.
-
-<details>
-<summary>Ver o prompt completo (cerca de 5.600 caracteres)</summary>
-
-```text
-Você é o especialista financeiro do Prisma, um app de bem-estar financeiro. Ajude a pessoa a planejar; a decisão é sempre dela.
-
-Regras:
-- Use SOMENTE os números de DADOS DO USUÁRIO e de INDICADORES DO BANCO CENTRAL. Nunca invente valores.
-- Para taxas de mercado (juros médios, Selic, inflação), use os INDICADORES DO BANCO CENTRAL, diga que são médias e cite "Banco Central" com o mês de referência.
-- Para explicar conceitos, use SOMENTE os TRECHOS DE REFERÊNCIA. Se eles não cobrirem a pergunta, diga que ainda não tem um conteúdo revisado sobre isso.
-- Cite a fonte e a página dos trechos que usar, como (fonte, p. N).
-- Se dois trechos se contradizem, siga as "Atualizações da equipe" do Prisma, que corrigem materiais antigos, e não repita a informação desatualizada.
-- Materiais antigos podem estar desatualizados: se um trecho falar de regra ou lei com data, avise que vale conferir se ainda está em vigor.
-- Não recomende produtos financeiros específicos (ações, fundos, bancos). Não julgue gastos.
-- O score do perfil_financeiro (risco de endividamento, de 0 a 100) serve para escolher o tom, não para ser repetido como nota. Se a faixa for "alto", comece acolhendo, sem tom de alarme, e priorize um passo pequeno e possível.
-- Transações atípicas são perguntas, nunca acusações ("essa compra repetida foi você mesmo?").
-- Responda em português do Brasil, curto, com valores como R$ 1.234,56.
-
-## DADOS DO USUÁRIO
-{'periodo': '2026-10', 'meses_com_dados': ['2026-08', '2026-09', '2026-10'], 'entradas': 3600.0, 'saidas': 4617.28, 'saldo': -1017.28, 'maiores_gastos_por_descricao': [{'descricao': 'PAGTO FATURA CARTAO FINAL 0000', 'total': 1890.35}, {'descricao': 'PIX ENVIADO - IMOBILIARIA LAR', 'total': 950.0}, {'descricao': 'COMPRA CARTAO DEB SUPERMERC BOM PRECO', 'total': 375.49}, {'descricao': 'PIX ENVIADO - J S', 'total': 300.0}, {'descricao': 'SAQUE 24H BANCO24HORAS', 'total': 200.0}, {'descricao': 'DEB AUT ENERGIA DISTRIB', 'total': 139.7}, {'descricao': 'PAG*IFOOD', 'total': 136.5}, {'descricao': 'COMPRA CARTAO DEB POSTO ESTRELA', 'total': 130.0}], 'transacoes_com_alerta': [], 'perfil_financeiro': {'score': 43, 'faixa': 'moderado', 'principais_fatores': ['comprometimento da renda: saídas médias de R$ 3.990,01 para R$ 3.726,67 de renda por mês (107% da renda)', 'meses no vermelho: 1 de 3 meses fecharam negativos', 'crédito caro (juros, IOF): juros ou IOF em 1 de 3 meses, total de R$ 42,59'], 'transacoes_atipicas': []}}
-
-## INDICADORES DO BANCO CENTRAL
-cartão de crédito rotativo: 439,90% ao ano, mai/2026
-cheque especial: 138,30% ao ano, mai/2026
-
-## TRECHOS DE REFERÊNCIA
-[FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 10] O que é crédito rotativo?
-
-O crédito rotativo é utilizado para financiar a fatura do cartão. Ele é concedido quando você não consegue pagar o valor total da fatura, mas pode pagar um valor igual ou superior ao mínimo mensal.
-
-Porém, ao utilizá-lo, você está sujeito ao pagamento de juros e demais encargos. O prazo máximo de utilização do crédito rotativo é de cerca de 30 dias.
-
-Como funciona o pagamento
-
-ra mínimo? Se você não conseguir quitar o total da fatura em um determinado mês, é possível pagar 15% do valor. Só que, na fatura seguinte, isso não poderá se repetir. Ou seja: quem paga o mínimo uma vez, não pode fazer isso novamente no mês seguinte. No pagamento do mínimo
-
-serão incorporados, no mês seguinte, juros rotativos sobre o valor restante.
-
-[Escola Nacional de Defesa do Consumidor, Prevenção e Tratamento do Superendividamento, p. 20] Crédito é um serviço especializado e oneroso que só pode ser prestado por alguns fornecedores do Sistema Financeiro Nacional (regulado pela Constituição, como bancos e financeiras e submetidos, em sua maioria, aos ditames do Banco Central, a exceção dos cartões de crédito). Crédito é um contrato real (se perfectibiliza com o ato da entrega do dinheiro pelo fornecedor-banco, administradora do cartão ou financeira) em que cabe ao consumidor-devedor “pagar” os juros (preço do corrigido, caso haja inflação e mais algumas taxas pelo uso deste tipo de crédito (com vários nomes, como comissão de permanência, taxa de administração, adiatamento depositante etc.)
-
-édito) e devolver o principal
-
-[Procon Goiás, Pesquisa: a relação do consumidor com seu dinheiro (2019), p. 5] 1 - POSTURA DO CONSUMIDOR EM RELAÇÃO AO CRÉDITO
-
-. Utiliza o rotativo do cartão de crédito (paga uma parte e deixa o restante para o mês seguinte)?
-
-Utiliza o rotativo do cartão de crédito (paga uma parte e deixa o restante para o mês seguinte)?
-
-Sempre Alternativa atá % Sempre 36 8%|
-
-s As vezes As vezes 120] 26%] 26% [Nunca 302] 66%]
-
-Superintendência de Proteção aos Direitos do Consumidor - PROCON-Goiás Rua 08 nº 242, Ed. Torres, Qd 05, Lt 36, St. Central, CEP: 74.013-030 Fone: (62) 3201-7112 — www.procon.go.gov.br
-
-GTFIGPC
-
-[FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 5] Todo cartão de crédito possui um titular, que recebe mensalmente a fatura para pagamento. Pode-se escolher pagar o valor total cobrado, somente o mínimo ou algum valor intermediário, deixando o resto do pagamento para o mês seguinte, mediante cobrança de juros. Nesse caso, utiliza-se o crédito rotativo, que tem uma das taxas de juros mais elevadas no mercado atualmente. Esse tipo de empréstimo tem um valor mais alto justamente por conta da facilidade de contratação, que eleva o risco de inadimplência para o banco ou instituição financeira.
-
-## PERGUNTA
-Como saio do rotativo?
-```
-
-</details>
-
-O exemplo também mostra limites reais da base: o trecho da p. 10 traz a regra antiga do mínimo de 15%, o trecho do Procon traz ruído de OCR de uma tabela e o resumo vai como um dicionário Python. A regra sobre materiais antigos existe para o primeiro caso.
+| Não recomendar produtos, não julgar gastos | o Prisma ajuda a planejar; não é recomendação de investimento |
+| Acolher quando os gastos passam das entradas | o tom importa para quem está apertado |
 
 ### O que volta
 
-Com a chave, o Especialista devolve o texto do Gemini e as fontes dos trechos usados:
-
-```json
-{
-  "resposta": "Dá para sair do rotativo com passos pequenos. Em outubro, as saídas (R$ 4.617,28) passaram das entradas (R$ 3.600,00), e o maior gasto foi a fatura do cartão, de R$ 1.890,35. O rotativo é o crédito usado quando a fatura não é paga inteira, e cobra juros e encargos sobre o que fica para o mês seguinte (FEBRABAN, Guia do Cartão de Crédito, p. 10). Sempre que der, pagar a fatura inteira evita esses juros (FEBRABAN, Guia do Cartão de Crédito, p. 5). Como o guia é anterior a mudanças nas regras do cartão, vale conferir na sua fatura as condições atuais. E uma pergunta: a compra repetida no iFood em 3 de setembro foi você mesmo?",
-  "fontes": ["FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 10", "FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 5"],
-  "gerado_por": "gemini"
-}
-```
-
-> O texto de `resposta` acima foi escrito à mão para ilustrar o que as regras pedem. A resposta real depende do modelo e muda a cada chamada.
-
-Sem a chave (ou sem internet, ou com a cota esgotada), a saída é real e determinística: os trechos mais próximos, com as fontes.
+Com a chave, o Especialista devolve o texto do Gemini e as fontes dos trechos usados. Sem a chave (ou sem internet, ou com a cota esgotada), devolve os trechos mais próximos, com as fontes:
 
 ```json
 {
   "resposta": "Não consegui gerar a resposta agora. Estes são os trechos mais próximos da sua pergunta.",
   "trechos": [
-    {"fonte": "FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito", "pagina": 10, "nota": 0.785, "texto": "O que é crédito rotativo? ..."},
-    {"fonte": "FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito", "pagina": 5, "nota": 0.728, "texto": "Todo cartão de crédito possui um titular ..."}
+    {"fonte": "FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito", "pagina": 10, "nota": 0.785, "texto": "O que é crédito rotativo? ..."}
   ],
-  "fontes": ["FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 10", "FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 5"],
+  "fontes": ["FEBRABAN (Meu Bolso em Dia), Guia do Cartão de Crédito, p. 10"],
   "gerado_por": "sem Gemini (GOOGLE_API_KEY não definida)"
 }
 ```
@@ -509,47 +341,7 @@ O prompt é registrado mesmo sem a chave do Gemini, para dar para ver o que seri
 ./prisma.sh especialista prompts --json     # o registro completo em JSON
 ```
 
-O arquivo fica só na sua máquina, com permissão `600`, e passa para `prompts.jsonl.1` ao chegar a 20 MB. Quando há `--titular`, ele contém o resumo do mês e o perfil financeiro da pessoa: trate-o como dado pessoal. Para desligar o registro, use `PRISMA_LOG_PROMPTS=0` no `.env`.
-
-## De onde vêm os dados
-
-O projeto usa três tipos de dados, e **nenhum deles é de uma pessoa real**.
-
-### Extratos fictícios (`extratos_ficticios/`)
-
-São extratos inventados pela equipe para testar o Coletor, vindos da primeira versão do projeto (`agente-simples/dados/`, usada no notebook do Colab). Representam a conta de um titular fictício (`000.000.000-00`) de 1º de agosto a 26 de outubro de 2026: salário, aluguel, mercado, delivery, assinaturas, fatura do cartão, PIX, juros de cheque especial e aplicações.
-
-A mesma conta aparece em três formatos, para testar cada caminho de leitura do Coletor e a consolidação entre arquivos:
-
-| Arquivo | Formato | Como o Coletor lê | Transações |
-|---|---|---|---|
-| `extrato-ficticio.txt` | CSV com `;` e vírgula decimal, como o Excel brasileiro exporta | leitura local | 77 |
-| `extrato-ficticio.pdf` | PDF com texto, 2 páginas, ponto decimal | pypdf (ou DocStrange, se configurado) | 79 |
-| `extrato-ficticio.png` | imagem de extrato (1760 × 5300 px) | só com DocStrange (OCR) | — |
-
-Consolidados, os arquivos dão **79 transações únicas, com líquido de −R$ 341,44**. As duas que faltam no TXT (uma compra repetida e o estorno dela) mostram como o Coletor aponta diferenças entre fontes.
-
-Os extratos têm problemas plantados de propósito, para testar os alertas do Coletor e a rede neural do Agente de Perfil Financeiro:
-
-| Data | Lançamento | O que testa |
-|---|---|---|
-| 19/08 | `PAG*IFOD` -29,90 | erro de digitação (`descricao_parecida_com:PAG*IFOOD`) |
-| 03/09 | `PAG*IFOOD` -48,70, duas vezes | cobrança repetida (`repetido_no_mesmo_dia`) |
-| 04/09 | `PIX ENVIADO - J S` -0,01 | PIX de teste (`valor_irrisorio`) |
-| 14/09 e 17/09 | `ESTORNO ...` | estorno ligado ao débito original (`estorna:<data>`) |
-| 06/10 | `JUROS CHEQUE ESPECIAL` e `IOF S/ SALDO DEVEDOR` | crédito caro no perfil financeiro |
-
-### Dados sintéticos da rede neural (`NeuralNetwork/`)
-
-A rede neural do Agente de Perfil Financeiro não treina com os extratos acima, que são poucos. Ela treina com dados gerados pelo `NeuralNetwork/src/gerar_dados_sinteticos.py`, do projeto de redes da equipe: usuários com perfis diferentes (renda, hábitos, categorias), anos de transações e anomalias injetadas com rótulo (fraude, compra atípica, cobrança duplicada, gasto acima do padrão, conta inflada). O `./prisma.sh perfil treinar` gera 200 usuários para o autoencoder e 1.000 para o classificador de endividamento, e guarda tudo em `~/.prisma/perfil_dados/`. Para o classificador, o gerador fornece também o saldo verdadeiro de cada dia, que é de onde sai o rótulo "endividado". Detalhes em [`NeuralNetwork/docs/RELATORIO_TECNICO.md`](NeuralNetwork/docs/RELATORIO_TECNICO.md).
-
-### Base de conhecimento (`base_conhecimento/`)
-
-Materiais públicos de educação financeira (BCB, CVM, FEBRABAN, Senacon, Enap e outros), extraídos de PDF. Veja [Base de conhecimento](#base-de-conhecimento).
-
-### E os extratos reais?
-
-O Coletor lê extratos reais nos mesmos formatos (`./prisma.sh coletor importar --titular <ID> ~/Downloads/extrato.ofx`), e tudo fica criptografado em `~/.prisma`. Mas, enquanto o projeto estiver em teste, **use só dados fictícios**: o Gemini recebe o resumo do mês quando há titular, e o DocStrange no modo nuvem envia o arquivo inteiro para fora do Brasil. CSV, TXT, XLSX e OFX são sempre lidos localmente.
+O arquivo fica só na sua máquina, com permissão `600`, e passa para `prompts.jsonl.1` ao chegar a 20 MB. Com `--com-dados`, ele contém o resumo do mês da pessoa: trate-o como dado pessoal. Para desligar o registro, use `PRISMA_LOG_PROMPTS=0` no `.env`.
 
 ## Base de conhecimento
 
@@ -569,402 +361,171 @@ Ficam de fora: subpastas, arquivos com `backup` no nome, cópias idênticas, pá
 
 Os materiais pertencem às instituições que os publicaram. Confirme se a licença de cada um permite republicar o texto extraído em um repositório público.
 
-## Como inicializar o projeto
+### Testar a busca
+
+A pasta `especialista/` traz um conjunto de perguntas de teste (`perguntas_teste.jsonl`): 18 perguntas de finanças, cada uma com os materiais da base que a respondem, e 4 perguntas fora do tema (futebol, receita, pneu, Copa). O comando abaixo mede a busca com o índice e o modo atuais:
+
+```bash
+./prisma.sh especialista avaliar          # tabela legível
+./prisma.sh especialista avaliar --json   # resultado completo
+```
+
+Ele mostra, para cada pergunta, em que posição veio o material certo e a nota do 1º trecho. No fim, mostra o resumo: acerto no 1º trecho, acerto entre os 4, MRR (1,0 = sempre em 1º), as faixas de nota dos acertos e das perguntas fora do tema, e uma **sugestão de `PRISMA_NOTA_MINIMA`** que separa os dois grupos.
+
+Resultado no modo `lexico`, com a base atual:
+
+| Medida | Resultado |
+|---|---|
+| Acerto no 1º trecho | 67% (12 de 18) |
+| Acerto entre os 4 primeiros | 83% (15 de 18) |
+| MRR | 0,74 |
+| Notas dos acertos / fora do tema | 0,226 a 0,489 / 0,115 a 0,164 |
+| Nota mínima sugerida | 0,195 |
+
+Os três erros mostram o limite da busca por palavras: em "Como saio do rotativo?", a palavra "saio" não aparece nos materiais, que falam em "sair"; em "inflação" e "desperdício", guias parecidos vieram antes do material certo. A mesma pergunta escrita como "crédito rotativo" acha o Guia do Cartão de Crédito. Note que, nesse modo, a nota mínima padrão (0,5) descartaria quase todos os trechos: **cada modo tem a sua escala**, então rode o `avaliar` e ajuste `PRISMA_NOTA_MINIMA` sempre que trocar de modo. Os modos `local` e `gemini` entendem sinônimos e devem acertar mais; para comparar, rode o mesmo comando depois de indexar em cada modo.
+
+Para acrescentar perguntas, inclua linhas no arquivo no formato `{"pergunta": "...", "esperado": ["nome-do-arquivo-da-base"]}`, com `"esperado": []` para perguntas fora do tema.
+
+## Como rodar
 
 ### Requisitos
 
-- Linux (o projeto é usado no Ubuntu 20.04; o `prisma.sh` usa bash e `sha256sum`). No Windows, veja [No Windows](#no-windows).
-- **Python 3.10 ou mais novo.** No Ubuntu 20.04 o `python3` é o 3.8; o `prisma.sh` procura sozinho um `python3.12`, `python3.11` ou `python3.10`.
-- Git e cerca de 1,5 GB livres (dependências, modelo local de embeddings e índice)
-- Opcional: chave do Gemini, criada em [aistudio.google.com](https://aistudio.google.com)
+- Linux (o projeto é usado no Ubuntu 20.04; o `prisma.sh` usa bash). No Windows, use o WSL2.
+- **Python 3.10 ou mais novo** (o `prisma.sh` procura `python3.12`, `python3.11` ou `python3.10`).
+- O repositório com as três pastas lado a lado: `projeto_agentes/`, `PrismaAPP/` e `agente-sql/`.
+- Credenciais da Pluggy (Client ID, Client Secret e o itemId de cada banco) e, para as respostas escritas, uma chave do Gemini (aistudio.google.com).
+- Para o app: Android Studio Rabbit 2 (2026.2.2) ou mais novo e `uv` (`sudo snap install --classic astral-uv`).
 
 ### Passo a passo
 
-**1. Clone e suba os agentes**
+**1. Suba os agentes** (na 1ª vez cria o `.venv`, instala tudo e cria o `.env`):
 
 ```bash
-git clone https://github.com/kelsbor/Prisma.git
-cd Prisma
+cd Prisma/projeto_agentes
 ./prisma.sh iniciar
 ```
 
-Na primeira vez, o script cria o `.venv`, instala as dependências, cria o `.env` e gera as chaves de criptografia em `~/.prisma/chaves.json`. **Faça backup desse arquivo**: sem ele, os dados não podem ser lidos. No fim, ele mostra os cinco agentes no ar:
-
-```
-  armazenamento no ar: http://127.0.0.1:8000/mcp
-  coletor no ar: http://127.0.0.1:8001/mcp
-  especialista no ar: http://127.0.0.1:8002/mcp
-  perfil no ar: http://127.0.0.1:8003/mcp
-  indicadores no ar: http://127.0.0.1:8004/mcp
-```
-
-**2. Configure o `.env`**
-
-Abra o `.env` na raiz do projeto e escolha um dos modos:
+**2. Preencha o `.env`** e confira sem expor segredos:
 
 ```bash
-# Com Gemini: busca e respostas escritas pelo Gemini
-GOOGLE_API_KEY=sua-chave
-
-# Sem chave: busca com um modelo local (baixa ~220 MB na 1ª vez); respostas viram os trechos encontrados
-PRISMA_EMBEDDINGS=local
+nano .env          # GOOGLE_API_KEY, PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET, PLUGGY_ITEM_IDS
+./prisma.sh env
 ```
 
-As duas linhas podem ficar juntas: a busca roda local e o Gemini só escreve as respostas.
-
-**3. Importe os extratos de exemplo**
+**3. Baixe os dados e prepare a base:**
 
 ```bash
-./prisma.sh importar 000.000.000-00
+./prisma.sh pluggy           # contas, cartões e transações da Pluggy
+./prisma.sh indexar          # base de conhecimento (a 1ª vez demora)
+./prisma.sh especialista avaliar   # confere a busca e sugere a PRISMA_NOTA_MINIMA
+./prisma.sh reiniciar
 ```
 
-Resultado esperado: `79 gravadas · 0 já existiam`. Rodar de novo não duplica nada.
-
-**4. Prepare a base de conhecimento e a rede neural**
+**4. Use:**
 
 ```bash
-./prisma.sh indexar          # a 1ª vez demora: são ~5.500 pedaços
-./prisma.sh perfil treinar    # uma vez: gera dados sintéticos e treina as duas redes (~5 min)
-./prisma.sh reiniciar        # para os serviços lerem a chave, o índice e o modelo
+./prisma.sh consultas perguntar "Quanto gastei com mercado em outubro?"
+./prisma.sh sql "Qual meu saldo e quanto tenho de limite?"
+./prisma.sh indicadores juros
+./prisma.sh indicadores simular --valor 1000 --modalidade rotativo --meses 3
 ```
 
-**5. Use**
+**5. App Android (opcional):** `./prisma.sh app`, conecte o celular (ou abra o emulador) e clique em **Run 'app'** no Android Studio.
 
-```bash
-./prisma.sh especialista buscar "o que é crédito rotativo"
-./prisma.sh perfil ver --titular 000.000.000-00
-./prisma.sh especialista perguntar "Como saio do rotativo?" --titular 000.000.000-00
-```
+No dia a dia: `./prisma.sh iniciar`, `./prisma.sh pluggy` quando quiser dados novos, e `./prisma.sh parar` no fim.
 
-Para conferir que está tudo certo: `./prisma.sh status` e `./prisma.sh testes`.
+### VS Code
 
-### Instalação manual (sem o `prisma.sh`)
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate          # repita em cada terminal novo
-pip install -r requirements.txt
-cp .env.example .env
-python -m coletor importar --titular 000.000.000-00
-python -m especialista indexar
-python -m perfil treinar
-```
-
-Com o venv ativado, todo comando `./prisma.sh <agente> ...` deste README também funciona como `python -m <agente> ...`.
-
-### No Windows
-
-O jeito recomendado é o **WSL2**, que roda um Ubuntu dentro do Windows: o `prisma.sh` e todos os comandos deste README funcionam igual. Rodar direto no Windows também dá, mas sem o `prisma.sh` e sem os atalhos do `.vscode/`.
-
-**Opção 1: WSL2 (recomendado)**
-
-1. No PowerShell **como administrador**, instale o WSL com Ubuntu e reinicie o computador:
-   ```powershell
-   wsl --install -d Ubuntu
-   ```
-2. Abra o **Ubuntu** pelo menu Iniciar, crie o usuário e instale o necessário:
-   ```bash
-   sudo apt update && sudo apt install -y python3-venv python3-pip git unzip
-   ```
-3. Clone o projeto **dentro do Ubuntu** (na pasta pessoal `~`, não em `/mnt/c/...`, que é bem mais lento) e siga o [passo a passo](#passo-a-passo) normalmente:
-   ```bash
-   cd ~
-   git clone https://github.com/kelsbor/Prisma.git
-   cd Prisma
-   ./prisma.sh iniciar
-   ```
-
-Os serviços ficam acessíveis no Windows pelos mesmos endereços (`http://127.0.0.1:8000` a `8003`). Para editar, instale a extensão **WSL** no VS Code e rode `code .` dentro da pasta do projeto, no Ubuntu.
-
-**Opção 2: direto no Windows (PowerShell)**
-
-Requer o Python 3.10 ou mais novo, de [python.org](https://www.python.org/downloads/) (marque "Add python.exe to PATH" na instalação), e o Git.
-
-```powershell
-git clone https://github.com/kelsbor/Prisma.git
-cd Prisma
-py -3.11 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env
-```
-
-Se o PowerShell bloquear o `Activate.ps1`, rode uma vez `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` e tente de novo.
-
-Depois, use os comandos `python -m <agente> ...` deste README, sempre a partir da pasta do projeto:
-
-```powershell
-python -m coletor importar --titular 000.000.000-00
-python -m especialista indexar
-python -m perfil treinar
-python -m perfil ver --titular 000.000.000-00
-python -m especialista perguntar "Como saio do rotativo?" --titular 000.000.000-00
-python -m pytest
-```
-
-Sem o `prisma.sh`, cada agente que precisa do Armazenamento abre o seu por conta própria, e tudo funciona. Para subir os agentes como serviços, abra um terminal para cada um:
-
-```powershell
-python -m armazenamento --http                    # terminal 1
-$env:ARMAZENAMENTO_URL = "http://127.0.0.1:8000"  # nos terminais 2 a 4, antes do comando
-python -m coletor servidor --http                 # terminal 2
-python -m especialista servidor --http            # terminal 3
-python -m perfil servidor --http                   # terminal 4
-```
-
-No Windows, o `.venv` fica em `.venv\Scripts\python.exe`, e não em `.venv/bin/python`. Por isso, troque esse caminho no `.vscode/settings.json` e no `.vscode/mcp.json` se for usar o VS Code direto no Windows.
-
-### Orquestrar com CrewAI (opcional)
-
-A pasta `crew/` tem um orquestrador feito com o [CrewAI](https://docs.crewai.com): um agente "Orientador financeiro", com o Gemini, que usa os agentes do Prisma como ferramentas via MCP. Ele decide sozinho o que chamar: `perfil_financeiro`, `transacoes_atipicas` e `classificar_endividamento` do Perfil Financeiro, `buscar_conhecimento` e `consultar_transacoes` do Especialista, e `juros_do_credito`, `indicador` e `simular_custo` do Indicadores. Os números continuam vindo dos agentes do Prisma.
-
-O CrewAI usa a versão 1.x da biblioteca `mcp`, e o Prisma a 2.x. Por isso ele roda num **ambiente separado**:
-
-```bash
-python3.11 -m venv .venv-crew
-.venv-crew/bin/pip install -r crew/requirements.txt
-.venv-crew/bin/python crew/orientador.py --listar-ferramentas          # confere a conexão, sem LLM
-.venv-crew/bin/python crew/orientador.py --titular 000.000.000-00 --pergunta "Como saio do rotativo?"
-```
-
-Precisa da `GOOGLE_API_KEY` no `.env`, porque é o LLM que escolhe as ferramentas. Os resultados das ferramentas (perfil, transações, trechos) vão para o Gemini: use só dados fictícios.
-
-### VS Code e Claude Code
-
-A pasta `.vscode/` já vem pronta. O painel **Executar e Depurar** (`Ctrl+Shift+D`) tem uma configuração para cada comando principal, e o `.vscode/mcp.json` registra os cinco agentes para o chat em modo agente. Selecione o interpretador `./.venv/bin/python` (`Ctrl+Shift+P` → **Python: Select Interpreter**).
-
-No Claude Code, na pasta do projeto:
-
-```bash
-claude mcp add prisma-armazenamento -e PYTHONPATH=$PWD -- $PWD/.venv/bin/python -m armazenamento
-claude mcp add prisma-coletor       -e PYTHONPATH=$PWD -- $PWD/.venv/bin/python -m coletor
-claude mcp add prisma-especialista  -e PYTHONPATH=$PWD -- $PWD/.venv/bin/python -m especialista
-claude mcp add prisma-perfil         -e PYTHONPATH=$PWD -- $PWD/.venv/bin/python -m perfil
-claude mcp add prisma-indicadores    -e PYTHONPATH=$PWD -- $PWD/.venv/bin/python -m indicadores
-```
+A pasta `.vscode/` já vem pronta: o painel **Executar e Depurar** tem uma configuração para cada comando principal, e o `.vscode/mcp.json` registra o Especialista, o Indicadores, o Consultas e o agente-sql para o chat em modo agente. Selecione o interpretador `./.venv/bin/python`.
 
 ## Todos os comandos
 
-Todos rodam na raiz do projeto. `./prisma.sh <agente> ...` usa o Python do `.venv` sem precisar ativá-lo e equivale a `python -m <agente> ...` com o venv ativado. Cada comando mostra a própria ajuda com `--help`.
-
-### `prisma.sh`: controle geral
+Todos rodam em `projeto_agentes/`. `./prisma.sh <agente> ...` usa o Python do `.venv` e equivale a `python -m <agente> ...`. Cada comando mostra a própria ajuda com `--help`.
 
 | Comando | O que faz |
 |---|---|
-| `./prisma.sh iniciar` (ou só `./prisma.sh`) | prepara venv, dependências e `.env` e sobe os 5 agentes |
-| `./prisma.sh parar` | para todos |
-| `./prisma.sh reiniciar` | para e sobe de novo |
-| `./prisma.sh status` | mostra quem está no ar |
-| `./prisma.sh liberar` | derruba agentes do Prisma que ocupam as portas 8000 a 8004, inclusive os iniciados de outra pasta |
-| `./prisma.sh logs` | acompanha os logs de todos (`Ctrl+C` sai); ficam em `.run/` |
-| `./prisma.sh logs <agente>` | log de um agente: `armazenamento`, `coletor`, `especialista` ou `perfil` |
-| `./prisma.sh importar <TITULAR>` | importa `extratos_ficticios/` no Armazenamento |
+| `./prisma.sh iniciar` (ou só `./prisma.sh`) | prepara venv, dependências e `.env` e sobe os 3 agentes |
+| `./prisma.sh parar` / `reiniciar` / `status` | para, reinicia ou mostra quem está no ar |
+| `./prisma.sh logs [agente]` | acompanha os logs (em `.run/`) |
+| `./prisma.sh liberar` | derruba agentes do Prisma que ocupam as portas (ex.: de outra pasta) |
+| `./prisma.sh env` | mostra a configuração única, sem expor segredos |
+| `./prisma.sh pluggy` | baixa contas e transações da Pluggy para `~/.prisma/app/prisma.db` |
+| `./prisma.sh sql "<pergunta>"` | pergunta ao agente-sql (inclui saldo, fatura e limite) |
 | `./prisma.sh indexar` | atualiza o índice da base de conhecimento |
+| `./prisma.sh app [parar]` | assistente do PrismaAPP na porta 8010, com o mesmo `.env` |
 | `./prisma.sh testes` | roda os testes |
-| `./prisma.sh <agente> <comando> ...` | qualquer comando de um agente (tabelas abaixo) |
 | `./prisma.sh ajuda` | mostra a ajuda |
 
-As dependências só são reinstaladas quando o `requirements.txt` muda.
+| Agente | Comando | O que faz |
+|---|---|---|
+| Especialista | `./prisma.sh especialista status` / `indexar [--refazer]` | estado e manutenção do índice |
+| Especialista | `./prisma.sh especialista buscar "<pergunta>" [-k 4]` | trechos mais relevantes, com nota |
+| Especialista | `./prisma.sh especialista resumo [--periodo AAAA-MM]` | resumo do mês (dados da Pluggy) |
+| Especialista | `./prisma.sh especialista perguntar "<pergunta>" [--com-dados] [--periodo AAAA-MM]` | resposta com RAG, taxas oficiais e, se pedido, o resumo do mês |
+| Especialista | `./prisma.sh especialista prompts [-n 1] [--json]` | últimos prompts registrados |
+| Especialista | `./prisma.sh especialista avaliar [-k 4] [--json]` | mede a busca com as perguntas de teste e sugere a nota mínima |
+| Indicadores | `./prisma.sh indicadores juros` / `ver <nome>` / `historico <nome> [-n 12]` | taxas do Banco Central |
+| Indicadores | `./prisma.sh indicadores simular --valor 1000 --modalidade rotativo --meses 3` | quanto a dívida cresce |
+| Consultas | `./prisma.sh consultas status` / `perguntar "<pergunta>"` | perguntas com SQL validado |
+| todos | `./prisma.sh <agente> servidor --http [--port N]` | sobe um agente como serviço HTTP |
 
-### Agente de Armazenamento
-
-| Comando | O que faz |
-|---|---|
-| `./prisma.sh armazenamento` | servidor MCP via stdio |
-| `./prisma.sh armazenamento --http [--port 8000]` | serviço local em HTTP |
-
-Não tem comandos de consulta próprios: os dados são lidos pelos outros agentes.
-
-### Agente Coletor
-
-| Comando | O que faz |
-|---|---|
-| `./prisma.sh coletor` | servidor MCP via stdio |
-| `./prisma.sh coletor servidor --http [--port 8001]` | serviço local em HTTP |
-| `./prisma.sh coletor analisar [arquivos ou pastas]` | lê e confere, sem gravar (padrão: `extratos_ficticios/`) |
-| `./prisma.sh coletor analisar --json` | o mesmo relatório em JSON |
-| `./prisma.sh coletor importar --titular <ID> [arquivos ou pastas]` | lê, confere e grava no Armazenamento |
-
-### Agente Especialista
-
-| Comando | O que faz |
-|---|---|
-| `./prisma.sh especialista` | servidor MCP via stdio |
-| `./prisma.sh especialista servidor --http [--port 8002]` | serviço local em HTTP |
-| `./prisma.sh especialista status` | o que está indexado e o que falta |
-| `./prisma.sh especialista indexar` | indexa arquivos novos ou alterados da base |
-| `./prisma.sh especialista indexar --refazer` | apaga o índice e refaz tudo |
-| `./prisma.sh especialista buscar "<pergunta>" [-k 4]` | mostra os trechos mais relevantes, com nota |
-| `./prisma.sh especialista resumo --titular <ID> [--periodo AAAA-MM]` | resumo do mês (só Python) |
-| `./prisma.sh especialista perguntar "<pergunta>" [--titular <ID>] [--periodo AAAA-MM]` | resposta com RAG, resumo e perfil financeiro |
-| `./prisma.sh especialista prompts [-n 1] [--json]` | mostra os últimos prompts registrados |
-
-### Agente de Perfil Financeiro
-
-| Comando | O que faz |
-|---|---|
-| `./prisma.sh perfil` | servidor MCP via stdio |
-| `./prisma.sh perfil servidor --http [--port 8003]` | serviço local em HTTP |
-| `./prisma.sh perfil treinar` | gera dados sintéticos e treina as duas redes (autoencoder e classificador) |
-| `./prisma.sh perfil treinar --so autoencoder\|classificador` | treina só uma das redes |
-| `./prisma.sh perfil treinar [--usuarios 200] [--usuarios-classificador 1000] [--motor auto\|torch\|sklearn] [--epocas 60] [--refazer-dados]` | ajustes do treino |
-| `./prisma.sh perfil classificar --titular <ID>` | a rede diz se a pessoa está ou não endividada |
-| `./prisma.sh perfil status` | se a rede está treinada, com qual motor e com que métricas |
-| `./prisma.sh perfil ver --titular <ID>` | score, componentes e transações atípicas |
-| `./prisma.sh perfil ver --titular <ID> --json` | o mesmo em JSON |
-| `./prisma.sh perfil ver --titular <ID> --sem-rede` | só os indicadores, sem a rede neural |
-
-### Agente de Indicadores
-
-| Comando | O que faz |
-|---|---|
-| `./prisma.sh indicadores` | servidor MCP via stdio |
-| `./prisma.sh indicadores servidor --http [--port 8004]` | serviço local em HTTP |
-| `./prisma.sh indicadores juros` | juros médios do rotativo, do cheque especial e do crédito pessoal, com a Selic |
-| `./prisma.sh indicadores ver <nome>` | um indicador: `selic`, `ipca_mes`, `ipca_12m`, `rotativo`, `cheque_especial`, `credito_pessoal`... |
-| `./prisma.sh indicadores simular --valor 1000 --modalidade rotativo --meses 3` | quanto a dívida cresce (`rotativo`, `cheque_especial` ou `credito_pessoal`) |
-| `./prisma.sh indicadores historico <nome> [-n 12]` | últimos valores de um indicador |
-
-### Ferramentas MCP
-
-Chamadas pelo VS Code, pelo Claude Code ou por outro agente, não pelo terminal.
-
-| Agente | Ferramenta | Parâmetros | O que faz |
-|---|---|---|---|
-| Armazenamento | `salvar_transacao` | `titular_id`, `dados` | grava uma transação |
-| Armazenamento | `salvar_lote` | `titular_id`, `transacoes` | grava até 500, ignorando as já gravadas |
-| Armazenamento | `consultar_titular` | `titular_id` | devolve as transações descriptografadas |
-| Armazenamento | `eliminar_titular` | `titular_id` | apaga tudo do titular |
-| Coletor | `analisar_extratos` | `caminhos` (opcional) | lê e confere, sem gravar |
-| Coletor | `importar_extratos` | `titular_id`, `caminhos` (opcional) | lê, confere e grava |
-| Especialista | `buscar_conhecimento` | `pergunta`, `k` (opcional) | trechos com fonte, página e nota |
-| Especialista | `consultar_transacoes` | `titular_id`, `periodo` (opcional) | resumo do mês |
-| Especialista | `perguntar` | `pergunta`, `titular_id` e `periodo` (opcionais) | resposta com RAG, dados e perfil financeiro |
-| Especialista | `status_base` | nenhum | o que está indexado |
-| Especialista | `atualizar_base` | nenhum | indexa o que mudou |
-| Perfil Financeiro | `perfil_financeiro` | `titular_id` | score, faixa, fatores e alertas |
-| Perfil Financeiro | `transacoes_atipicas` | `titular_id`, `limite` (opcional) | só os alertas da rede neural |
-| Perfil Financeiro | `classificar_endividamento` | `titular_id` | está ou não endividado, com probabilidade |
-| Perfil Financeiro | `status_modelo` | nenhum | estado das duas redes neurais |
-| Indicadores | `juros_do_credito` | nenhum | juros médios do crédito para pessoas físicas, com a Selic |
-| Indicadores | `indicador` | `nome` | último valor de um indicador do Banco Central |
-| Indicadores | `simular_custo` | `valor`, `modalidade`, `meses` | quanto uma dívida cresce com a taxa média |
-| Indicadores | `historico` | `nome`, `n` (opcional) | últimos valores de um indicador |
-
-### Testes
-
-```bash
-./prisma.sh testes          # ou: python -m pytest   ·   python -m pytest -v
-```
+| Agente | Ferramenta MCP | O que faz |
+|---|---|---|
+| Especialista | `buscar_conhecimento`, `resumo_do_mes`, `perguntar`, `status_base`, `atualizar_base` | RAG, resumo do mês e respostas |
+| Indicadores | `juros_do_credito`, `indicador`, `simular_custo`, `historico` | dados do Banco Central |
+| Consultas | `perguntar_ao_app`, `status_app` | SQL validado sobre o banco da Pluggy |
+| agente-sql | `consultar_financas` | SQL simples, com saldo, fatura e limite |
 
 ## Configuração (.env)
 
-O `.env` fica na raiz do projeto e não vai para o Git. Todas as variáveis são opcionais.
+Um único `.env`, em `projeto_agentes/`, serve ao projeto inteiro: os agentes, o agente-sql e o assistente do PrismaAPP. Ele não vai para o Git e é criado com permissão `600`. Para conferir: `./prisma.sh env`.
 
 | Variável | Para quê | Padrão |
 |---|---|---|
-| `GOOGLE_API_KEY` | chave do Gemini (escrever respostas e, no modo `gemini`, embeddings) | vazia |
-| `PRISMA_EMBEDDINGS` | `local` (sem chave) ou `gemini` | `gemini` |
-| `PRISMA_MODELO_LLM` | modelo do Gemini que escreve as respostas | `gemini-3.5-flash-lite` |
-| `PRISMA_MODELO_EMBEDDING` | modelo de embeddings do Gemini | `models/gemini-embedding-001` |
-| `PRISMA_MODELO_EMBEDDING_LOCAL` | modelo de embeddings local | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` |
+| `GOOGLE_API_KEY` | chave do Gemini | vazia |
+| `GEMINI_MODEL` | modelo do Gemini (Prisma, agente-sql e assistente do app) | `gemini-3.5-flash-lite` |
+| `LLM_TIMEOUT_S` | tempo máximo de uma chamada ao Gemini | `40` |
+| `PRISMA_EMBEDDINGS` | `local` (modelo na máquina), `gemini` ou `lexico` (por palavras, sem modelo) | `gemini` |
+| `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET`, `PLUGGY_ITEM_IDS` | credenciais da Pluggy e bancos conectados (separados por vírgula) | vazias |
+| `PRISMA_APP_DB` | banco da Pluggy | `~/.prisma/app/prisma.db` |
+| `APP_TOKENS` | token que o app envia ao assistente | gerado pelo `./prisma.sh app` |
+| `LIMITE_POR_MINUTO`, `LIMITE_PERGUNTAS_POR_DIA` | limites do assistente do app | `20`, `100` |
 | `PRISMA_NOTA_MINIMA` | nota mínima para um trecho ir ao Gemini | `0.5` |
-| `PRISMA_LOG_PROMPTS` | `0` desliga o registro dos prompts em `~/.prisma/logs/` | `1` |
-| `PRISMA_DIR` | pasta das chaves, do banco, do índice e dos modelos | `~/.prisma` |
-| `PRISMA_BASE` | pasta da base de conhecimento | `base_conhecimento/` |
-| `DB_PATH` | caminho do banco do Armazenamento | `~/.prisma/dados.db` |
-| `ARMAZENAMENTO_URL` | usar um Armazenamento já no ar, em vez de abrir um por stdio | vazia |
-| `ARMAZENAMENTO_TOKEN` | token desse Armazenamento, se for diferente do local | o de `~/.prisma/chaves.json` |
-| `PORTA_ARMAZENAMENTO`, `PORTA_COLETOR`, `PORTA_ESPECIALISTA`, `PORTA_PERFIL`, `PORTA_INDICADORES` | portas do `prisma.sh` | `8000`, `8001`, `8002`, `8003`, `8004` |
-| `INDICADORES_URL` | usar um Agente de Indicadores já no ar, em vez de abrir um por stdio | vazia |
-| `DOCSTRANGE_MODO`, `NANONETS_API_KEY` | leitura de PDF escaneado e imagem pelo Coletor | `nuvem`, vazia |
+| `PRISMA_LOG_PROMPTS` | `0` desliga o registro dos prompts | `1` |
+| `PRISMA_DIR` | pasta de dados (token, banco, índice, logs) | `~/.prisma` |
+| `PORTA_ESPECIALISTA`, `PORTA_INDICADORES`, `PORTA_CONSULTAS`, `PORTA_APP` | portas | `8002`, `8004`, `8006`, `8010` |
+| `PRISMA_APP_DIR`, `PRISMA_SQL_DIR`, `PRISMA_APP_AGENT_SRC` | pastas do PrismaAPP, do agente-sql e do código do assistente | `../PrismaAPP`, `../agente-sql`, `../PrismaAPP/agent/src` |
 
-Onde fica cada coisa em `~/.prisma`:
-
-| Caminho | Conteúdo |
-|---|---|
-| `chaves.json` | chaves de criptografia e token dos serviços (faça backup) |
-| `dados.db` | transações criptografadas |
-| `rag/gemini/`, `rag/local/` | índices da base de conhecimento, um por modo |
-| `modelos/` | modelo de embeddings local, `perfil_autoencoder.npz` e `perfil_classificador.npz` |
-| `perfil_dados/` | dados sintéticos usados no treino da rede |
-| `logs/prompts.jsonl` | prompts e respostas do Especialista |
+Em `~/.prisma`: `chaves.json` (token dos serviços), `app/prisma.db` (dados da Pluggy), `rag/` (índices), `modelos/` (modelo local de embeddings), `indicadores/` (cache do Banco Central) e `logs/prompts.jsonl`.
 
 ## Segurança e LGPD
 
-- **Dados em repouso:** cada transação é criptografada com Fernet. O ID do titular (por exemplo, um CPF) é guardado só como hash HMAC, depois de normalizado (`000.000.000-00` e `00000000000` são o mesmo titular).
-- **Direito de exclusão:** `eliminar_titular` apaga todos os dados de um titular (LGPD, art. 18).
-- **Chaves:** ficam em `~/.prisma/chaves.json`, fora do repositório, com permissão `600`.
-- **Rede:** os serviços escutam só em `127.0.0.1` e exigem o token; o `/health` de cada um é aberto.
+- **Dados reais num arquivo local.** O banco da Pluggy (`~/.prisma/app/prisma.db`) **não é criptografado**: fica fora do repositório, com permissão `600`, e os agentes o abrem só para leitura. Proteja a sua conta do computador e não copie esse arquivo para outros lugares. Para apagar tudo, `rm ~/.prisma/app/prisma.db*`.
+- **Rede.** Os agentes escutam só em `127.0.0.1` e exigem o token; o `/health` de cada um é aberto.
+- **Segredos.** As credenciais da Pluggy e a chave do Gemini ficam só no `.env`; o `.gitignore` da raiz ignora `.env`, `config.json` e bancos `*.db`.
 - **O que sai da máquina:**
-  - o **Gemini** recebe a pergunta, os trechos da base e, quando há titular, o resumo do mês e o perfil financeiro;
-  - no modo `PRISMA_EMBEDDINGS=gemini`, o **Gemini** também recebe todos os textos da base durante o `indexar`;
-  - o **DocStrange** no modo nuvem recebe o arquivo do extrato inteiro;
-  - o **Banco Central** recebe só os códigos das séries consultadas pelo Agente de Indicadores, nenhum dado da pessoa.
-
-  Nesses casos, **use só dados fictícios**. CSV, TXT, XLSX e OFX são sempre lidos localmente, e as redes neurais do perfil financeiro rodam na máquina.
+  - a **Pluggy** recebe as credenciais e devolve os seus dados (é a fonte);
+  - o **Gemini** recebe, no Especialista, a pergunta, os trechos da base e, com `--com-dados`, o resumo do mês; no Consultas e no agente-sql, a pergunta, a descrição das tabelas e até 50 ou 200 linhas do resultado do SQL;
+  - o **Banco Central** recebe só os códigos das séries.
 
 ## Guardrails
 
-Os guardrails são as proteções que limitam o que os agentes podem fazer e dizer. Eles estão em quatro camadas.
-
-### 1. No prompt do Gemini (`especialista/agente.py`)
-
-| Guardrail | O que impede |
-|---|---|
-| Usar só os números de DADOS DO USUÁRIO | o Gemini inventar ou calcular valores |
-| Explicar conceitos só com os TRECHOS DE REFERÊNCIA; sem trecho, dizer que não há conteúdo revisado | resposta "de memória", possivelmente errada |
-| Citar fonte e página | informação sem origem verificável |
-| Seguir as atualizações da equipe quando os trechos se contradizem | repetir regra desatualizada (ex.: mínimo de 15% do cartão) |
-| Avisar quando um trecho cita regra ou lei com data | apresentar material antigo como atual |
-| Não recomendar produtos financeiros específicos | recomendação de investimento |
-| Não julgar gastos | tom de culpa |
-| Taxas de mercado só dos indicadores do Banco Central, com fonte e mês | taxa inventada ou de material antigo |
-| Usar o score do perfil financeiro só para o tom; com risco alto, acolher primeiro | alarmismo e expor o score como nota |
-| Transações atípicas são perguntas, nunca acusações | acusar a pessoa de fraude ou erro |
-
-### 2. Antes de chegar ao Gemini (Python)
-
 | Guardrail | Onde |
 |---|---|
-| Todos os números (saldo, gastos, score) são calculados em Python, nunca pelo LLM | `especialista/dados.py`, `perfil/score.py` |
-| Filtro de nota mínima: trechos pouco relevantes não vão para o prompt | `PRISMA_NOTA_MINIMA` |
-| Vai só o resumo do mês, nunca as transações uma a uma | `especialista/dados.py` |
-| Sem chave, sem internet ou com a cota esgotada, devolve os trechos em vez de falhar | `especialista/agente.py` |
-| A base é curada: backups, cópias e páginas marcadas ficam de fora; correções entram como arquivo datado | `especialista/rag.py`, `atualizacoes-da-equipe.jsonl` |
-| O Coletor nunca corrige dados sozinho: problemas viram alertas | `coletor/qualidade.py` |
-| O score de risco é explicável: cada componente tem teto e explicação | `perfil/score.py` |
+| Especialista: só os números dos dados e dos indicadores; nunca inventar valores | prompt do Especialista |
+| Especialista: explicar só com os trechos da base, citando fonte e página; seguir as atualizações da equipe | prompt + `atualizacoes-da-equipe.jsonl` |
+| Especialista: não recomendar produtos, não julgar gastos | prompt do Especialista |
+| Especialista: filtro de nota mínima dos trechos; dados da pessoa só vão ao Gemini com `--com-dados` | `especialista/` |
+| Números vêm do SQL e do Python; o Gemini só escreve o SQL e o texto | Especialista, Consultas, agente-sql |
+| Banco da Pluggy aberto somente leitura (`mode=ro` e `query_only`) | Especialista, Consultas, agente-sql |
+| Consultas: filtro de manipulação, SQL validado (um `SELECT`, só a view), 200 linhas e 3 s | `consultas/motor.py` + `PrismaAPP/agent` |
+| Consultas: todo valor em R$ da resposta precisa existir no resultado | `consultas/motor.py` |
+| agente-sql: até 5 s e 200 linhas por consulta | `../agente-sql/agente.py` |
+| Banco Central: só códigos de série saem; cache de 12 h com aviso de dado antigo | `indicadores/bcb.py` |
+| Simulação do rotativo respeita o teto legal e avisa que é estimativa | `indicadores/consultas.py` |
+| Serviços só em `127.0.0.1`, com token; `.env` e bancos fora do Git | `comum/servidor_http.py`, `.gitignore` |
 
-### 3. Dados e segurança
-
-| Guardrail | Onde |
-|---|---|
-| Só o Agente de Armazenamento acessa o banco | arquitetura |
-| Transações criptografadas (Fernet); titular guardado só como HMAC | `armazenamento/app.py` |
-| A mesma transação não entra duas vezes | índice único em `chave_hash` |
-| Exclusão total do titular (LGPD, art. 18) | `eliminar_titular` |
-| Para a API do Banco Central só vão códigos de série; respostas em cache de 12 horas, com aviso quando o dado é antigo | `indicadores/bcb.py` |
-| A simulação do rotativo respeita o teto legal de juros (100% do valor original) e avisa que é uma estimativa | `indicadores/consultas.py` |
-| Serviços só em `127.0.0.1`, com token | `comum/servidor_http.py` |
-| Chaves fora do repositório, com permissão 600 | `~/.prisma/chaves.json` |
-| Limites nos parâmetros: lote de até 500, `k` até 10, `limite` até 50 | ferramentas MCP |
-| `.gitignore` impede enviar `.env`, `.venv`, `chaves.json` e bancos | `.gitignore` |
-
-### 4. Na operação
-
-| Guardrail | Onde |
-|---|---|
-| Testes sem internet do fluxo de ponta a ponta, da RAG e do Agente de Perfil Financeiro | `tests/` |
-| O `prisma.sh` confere se está na pasta certa e avisa quando falta a chave | `prisma.sh` |
-| O `prisma.sh` só derruba processos que são agentes do Prisma; outro programa numa porta não é tocado | `prisma.sh` |
-
-### O que ainda falta
-
-- **Conferir a resposta do Gemini.** Nada verifica se ele obedeceu às regras: se citou um número que não estava nos dados, se a fonte citada existe, se recomendou um produto.
-- **Defesa contra prompt injection.** Uma pergunta como "ignore as regras anteriores" vai direto para o prompt. Os trechos da base também entram sem filtro, o que hoje só é aceitável porque a base é curada pela equipe.
-- **Titular vindo do login.** As ferramentas aceitam qualquer `titular_id`. Num app real, o titular precisa vir da autenticação, e o modelo nunca deve escolher de quem são os dados.
-- **Filtro de tema e de conteúdo sensível.** Perguntas fora de finanças, ou de alguém em sofrimento por causa de dívidas, não têm tratamento próprio além do tom acolhedor. Um encaminhamento para canais de apoio, como o CVV (188), seria importante para esse público.
-- **Limite de uso.** Nada impede chamadas em excesso ao Gemini.
+O que ainda falta: conferir automaticamente a resposta do Especialista e a do agente-sql (como o guardião do R$ do Consultas), defesa mais forte contra prompt injection e filtro de conteúdo sensível, com encaminhamento a canais de apoio como o CVV (188).
 
 ## Testes
 
@@ -972,96 +533,53 @@ Os guardrails são as proteções que limitam o que os agentes podem fazer e diz
 ./prisma.sh testes
 ```
 
-Os testes rodam sem internet, com chaves, banco e índice descartáveis, embeddings falsos e um Gemini falso. Eles cobrem:
-
-- a importação de ponta a ponta, sem duplicação;
-- a manutenção incremental da RAG (arquivo novo, alterado, removido, backup e cópia);
-- o resumo do mês vindo do Armazenamento;
-- o Agente de Indicadores, com a API do Banco Central simulada: séries, cache, uso do cache quando a API falha, comparação com a Selic e simulação com o teto do rotativo;
-- o Agente de Perfil Financeiro: categorias, forward da rede em NumPy conferido contra o scikit-learn, exportação do checkpoint PyTorch, treino rápido e o perfil com e sem a rede.
-
-A qualidade das respostas do Gemini e da busca precisa ser avaliada à parte, com a chave.
+Rodam sem internet, com índice e bancos descartáveis, embeddings falsos e um Gemini falso. Cobrem a manutenção da RAG, a busca por palavras, a avaliação da busca, o resumo do mês no banco da Pluggy, o Agente de Indicadores (com a API do Banco Central simulada), o Agente de Consultas (com o código do PrismaAPP) e o agente-sql (configuração pelo `.env` e download da Pluggy simulado, compatível com o Consultas e o Especialista).
 
 ## Estrutura do repositório
 
 ```
 Prisma/
-├── armazenamento/
-│   └── app.py                    # Agente de Armazenamento (MCP)
-├── coletor/
-│   ├── extracao.py               # leitura por formato e normalização
-│   ├── qualidade.py              # alertas, conciliação e consolidação
-│   ├── pipeline.py               # analisar() e enviar() em lotes
-│   └── app.py                    # Agente Coletor (MCP)
-├── especialista/
-│   ├── rag.py                    # indexação incremental e busca (Chroma)
-│   ├── dados.py                  # transações via MCP, resumo do mês e perfil financeiro
-│   ├── agente.py                 # junta RAG + dados; o Gemini escreve
-│   ├── log_prompts.py            # registra cada prompt em ~/.prisma/logs/prompts.jsonl
-│   └── app.py                    # Agente Especialista (MCP)
-├── perfil/
-│   ├── categorias.py             # descrição do extrato -> categorias da rede
-│   ├── rede.py                   # treina, exporta e roda o autoencoder (NumPy em produção)
-│   ├── classificador.py          # rede que classifica se a pessoa está ou não endividada
-│   ├── score.py                  # score de 0 a 100: indicadores + rede neural
-│   ├── dados.py                  # transações via MCP
-│   └── app.py                    # Agente de Perfil Financeiro (MCP)
-├── indicadores/
-│   ├── series.py                 # códigos das séries do Banco Central
-│   ├── bcb.py                    # API SGS do Banco Central, com cache
-│   ├── consultas.py              # juros, simulação e histórico
-│   └── app.py                    # Agente de Indicadores (MCP)
-├── comum/
-│   ├── config.py                 # chaves, pasta ~/.prisma, .env e logs
-│   ├── cliente_mcp.py            # cliente MCP para falar com outro agente (stdio ou HTTP)
-│   └── servidor_http.py          # modo HTTP comum aos agentes (127.0.0.1 + token)
-├── NeuralNetwork/                # projeto das redes: gerador sintético, features, MLP, autoencoder
-├── base_conhecimento/
-│   ├── *.jsonl                   # um material por arquivo, uma página por linha
-│   └── fontes.json               # título e instituição de cada material
-├── extratos_ficticios/           # extratos de exemplo, com dados fictícios
-├── docs/
-│   ├── *.svg                     # diagramas deste README
-│   └── gerar_diagramas.py        # gera os diagramas dos agentes
-├── tests/                        # testes de ponta a ponta, sem internet
-├── .vscode/                      # execução, depuração e MCP no VS Code
-├── prisma.sh                     # sobe, para e monitora todos os agentes
-├── .env.example                  # modelo do .env
-├── requirements.txt
-└── crew/                         # orquestrador opcional com CrewAI (ambiente separado)
+├── projeto_agentes/   # este projeto: os agentes, o prisma.sh e o .env único
+├── PrismaAPP/         # app Android (app/) e servidor do assistente text-to-SQL (agent/)
+└── agente-sql/        # download da Pluggy (gerar_banco.py) e agente SQL simples
+```
+
+```
+projeto_agentes/
+├── especialista/          # RAG (rag.py), resumo do mês (dados.py), prompt (agente.py), registro, MCP
+├── indicadores/           # API do Banco Central com cache, simulação e MCP
+├── consultas/             # text-to-SQL do PrismaAPP sobre o banco da Pluggy, com MCP
+├── comum/                 # .env, token, cliente MCP e servidor HTTP com token
+├── base_conhecimento/     # 37 materiais em JSONL + fontes.json + atualizações da equipe
+├── docs/                  # diagramas (gerados por docs/gerar_diagramas.py)
+├── perguntas_respostas_prisma(in).csv   # benchmark do agente-sql (agente-sql/avaliar.py)
+├── tests/
+├── .vscode/               # execução, depuração e MCP no VS Code
+├── prisma.sh              # sobe, para e monitora os agentes; pluggy, app, sql
+├── .env.example           # modelo do .env único
+└── requirements.txt
 ```
 
 ## Problemas comuns
 
 | Sintoma | Causa e solução |
 |---|---|
-| `SyntaxError` em `print(f"...")` e caminho com `python2.7` | O venv não está ativado e `python` é o Python 2. Use `./prisma.sh <agente> ...` ou `source .venv/bin/activate`. |
-| `No module named armazenamento.app` | O arquivo foi executado direto (botão "Run Code"). Rode como módulo: `python -m <agente>`, a partir da raiz. |
-| `cp: ... '.env.example': Arquivo ou diretório inexistente` | Os arquivos ocultos ficaram para trás na cópia. Descompacte com `unzip` ou clone o repositório; o `prisma.sh` atual cria o `.env` mesmo sem o modelo. |
-| `Chroma requires sqlite3 >= 3.35.0` | SQLite antigo do sistema. O pacote `pysqlite3-binary` do `requirements.txt` resolve; rode `./prisma.sh reiniciar` para instalá-lo. |
-| `GOOGLE_API_KEY não definida` no `buscar` ou no `indexar` | Coloque a chave no `.env` ou use `PRISMA_EMBEDDINGS=local`. Atenção: a variável é `PRISMA_EMBEDDINGS`, não `PRISMA_MODELO_EMBEDDING`. |
-| `Could not load model ...` no modo local | A rede bloqueou o download do Hugging Face. Rode o `indexar` uma vez em outra rede. |
-| `A porta 800X está com outro programa` | O `iniciar` já derruba sozinho agentes do Prisma de outra pasta. Se a porta estiver com outro programa, ele não é tocado: pare-o ou mude `PORTA_*`. |
-| `Rede neural indisponível` ou `classificador não treinado` | Rode `./prisma.sh perfil treinar` uma vez. |
-| `API do Banco Central indisponível e sem cache` | Sem internet ou API fora do ar na primeira consulta. Depois da primeira resposta, o agente usa o cache quando a API falha. Teste com `./prisma.sh indicadores juros`. |
+| `Banco da Pluggy não encontrado` | Rode `./prisma.sh pluggy` (ou copie o `prisma.db` do celular para `~/.prisma/app/`). |
+| `Faltam as credenciais da Pluggy` | Preencha `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` e `PLUGGY_ITEM_IDS` no `.env`. |
+| `Erro 401 da Pluggy em /auth` | Client ID ou Client Secret errados. Confira no painel da Pluggy. |
+| `SyntaxError` com `python2.7` | O venv não está ativado. Use `./prisma.sh <agente> ...`. |
+| `GOOGLE_API_KEY não definida` | Coloque a chave no `.env`. Para a busca do Especialista sem chave, use `PRISMA_EMBEDDINGS=local`. |
+| `Chroma requires sqlite3 >= 3.35.0` | SQLite antigo do sistema; o `pysqlite3-binary` resolve: rode `./prisma.sh reiniciar`. |
+| `A porta 80xx está ocupada por um programa de outro usuário` | Algo foi iniciado com `sudo`. Pare-o e use só o `./prisma.sh`. |
+| `Não encontrei o assistente do PrismaAPP` | Defina `PRISMA_APP_AGENT_SRC` com o caminho de `PrismaAPP/agent/src`. |
+| No app: assistente indisponível | Confira `./prisma.sh status` (assistente na 8010) e o `adb reverse tcp:8010 tcp:8010`; no emulador, use `http://10.0.2.2:8010/`. |
+| No app: erro 401 | O token do app é diferente do `APP_TOKENS`: gere o app de novo (**Run 'app'**). |
+| `Falta o uv` | `sudo snap install --classic astral-uv` |
 
-## Limitações conhecidas
+## Limitações e próximos passos
 
-- A qualidade da busca ainda não foi medida com o Gemini; a nota mínima precisa ser calibrada.
-- Quase metade dos pedaços da base vem de livros técnicos da CVM (mercado de capitais, derivativos), o que pode afastar respostas sobre finanças do dia a dia. Parte dos materiais é antiga (BCB, 1999; CVM, 2010) e alguns OCRs têm páginas ruins.
-- A rede neural foi treinada só com dados sintéticos e, nos experimentos do projeto, o Isolation Forest teve métricas melhores que o autoencoder. Com poucos meses de histórico, a taxa de compras atípicas fica bem acima de 1%, porque quase todo estabelecimento ainda é "novo".
-- Os limites do score de risco são heurísticos e ainda não foram calibrados com dados reais.
-- O classificador de endividamento foi treinado só com dados sintéticos, sem saldo real, e tem muitos alarmes falsos (precisão de 27%). Ele empata com uma regressão logística. Extratos que trazem o saldo (OFX e alguns CSV) permitiriam medir o "no vermelho" diretamente, sem estimar.
-- A MLP de previsão de gastos do `NeuralNetwork/` ainda não é usada: ela pede 6 meses de histórico e o checkpoint não guarda a padronização.
-- As taxas do Banco Central são médias de mercado, divulgadas com algumas semanas de atraso, e não a taxa do contrato de cada pessoa. A simulação não inclui IOF nem tarifas.
-- As ferramentas aceitam qualquer `titular_id`. Em um app real, o titular deve vir do login.
-- Imagens e PDFs escaneados dependem do DocStrange.
-
-## Próximos passos
-
-- Medir a busca com perguntas de teste e calibrar a nota mínima.
-- Revisar a base: tirar ou separar o que não é educação financeira do dia a dia.
-- Calibrar o score de risco e o limiar da rede com dados reais, e comparar com o Isolation Forest.
-- Usar a MLP de previsão para projetar o fechamento do mês no perfil financeiro.
-- Agente de localização (OpenStreetMap) para indicar o Procon ou a Defensoria Pública mais próxima a quem tem risco alto de endividamento.
-- Interface (chatbot) que decide entre o Especialista, o Perfil Financeiro e as consultas de transações.
+- O banco da Pluggy não é criptografado; a proteção é o arquivo local com permissão `600` e o acesso somente leitura.
+- As taxas do Banco Central são médias de mercado, divulgadas com algumas semanas de atraso, e não a taxa do contrato da pessoa.
+- A qualidade da busca do Especialista ainda não foi medida com o Gemini, e quase metade dos pedaços da base vem de livros técnicos da CVM.
+- O Agente de Consultas depende da estrutura do código do assistente do PrismaAPP.
+- Próximos passos: notificações dos agentes para o app (mudanças de gasto, juros), conferência automática das respostas do Especialista e do agente-sql e revisão da base de conhecimento.

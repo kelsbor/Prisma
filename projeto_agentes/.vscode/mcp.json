@@ -1,47 +1,11 @@
 {
   "servers": {
-    "prisma-coletor": {
-      "type": "stdio",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m",
-        "coletor"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      }
-    },
-    "prisma-armazenamento": {
-      "type": "stdio",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m",
-        "armazenamento"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      }
-    },
     "prisma-especialista": {
       "type": "stdio",
       "command": "${workspaceFolder}/.venv/bin/python",
       "args": [
         "-m",
         "especialista"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      }
-    },
-    "prisma-perfil": {
-      "type": "stdio",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m",
-        "perfil"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -58,6 +22,28 @@
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "prisma-consultas": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m",
+        "consultas"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "prisma-agente-sql": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "${workspaceFolder}/../agente-sql/servidor_mcp.py"
+      ],
+      "env": {
+        "PRISMA_ENV_FILE": "${workspaceFolder}/.env"
       }
     }
   }

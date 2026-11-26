@@ -89,57 +89,87 @@ class Diagrama:
         return PASTA / f"{self.nome}.svg"
 
 
-def armazenamento():
-    d = Diagrama("agente-armazenamento", "Agente de Armazenamento",
-                 "Salvar pseudonimiza o titular com HMAC, criptografa os dados com Fernet e evita duplicatas pela "
-                 "chave; consultar busca pelo HMAC e descriptografa; eliminar apaga tudo do titular.", 520)
-    d.caixa(40, 40, 240, "Salvar", "salvar_lote · salvar_transacao", "ag")
-    d.caixa(40, 310, 240, "Consultar", "consultar_titular", "ag")
-    d.caixa(40, 400, 240, "Eliminar", "eliminar_titular", "ag")
-    d.caixa(340, 40, 300, "Titular vira HMAC", "ID sem pontuação, nunca em claro")
-    d.caixa(340, 130, 300, "Dados viram Fernet", "o JSON inteiro é criptografado")
-    d.caixa(340, 220, 300, "Chave vira HMAC", "a mesma transação não entra 2 vezes")
-    d.caixa(340, 310, 300, "Fernet vira JSON", "descriptografa só na consulta")
-    d.caixa(710, 40, 250, "chaves.json", "~/.prisma · permissão 600", "dd")
-    d.caixa(710, 220, 250, "SQLite · registros", "~/.prisma/dados.db", "dd")
-    d.seta((280, 68), (336, 68))
-    d.seta((490, 96), (490, 126))
-    d.seta((490, 186), (490, 216))
-    d.seta((640, 248), (706, 248))
-    d.rotulo(673, 240, "grava")
-    d.seta((710, 68), (644, 68))
-    d.rotulo(677, 60, "chaves")
-    d.seta((835, 276), (835, 338), (644, 338))
-    d.rotulo(740, 330, "busca pelo HMAC")
-    d.seta((340, 338), (284, 338))
-    d.seta((280, 428), (910, 428), (910, 280))
-    d.rotulo(595, 420, "apaga tudo do titular (LGPD, art. 18)")
+def consultas():
+    d = Diagrama("agente-consultas", "Agente de Consultas",
+                 "Perguntas sobre os gastos respondidas com SQL, com o código do assistente do PrismaAPP: filtro "
+                 "de manipulação, Gemini escreve o SQL, validação, execução somente leitura no banco da Pluggy, Gemini "
+                 "redige e o guardião confere que todo valor em R$ existe no resultado.", 360)
+    d.caixa(40, 40, 200, "Pergunta", "até 300 caracteres", "ag")
+    d.caixa(280, 40, 200, "Filtro", "bloqueia manipulação")
+    d.caixa(520, 40, 200, "Gemini escreve SQL", "prompt do PrismaAPP", "ex")
+    d.caixa(760, 40, 200, "Valida o SQL", "1 SELECT, só a view")
+    d.caixa(760, 170, 200, "Executa", "só leitura, até 3 s")
+    d.caixa(520, 170, 200, "Banco da Pluggy", "vw_registers", "dd")
+    d.caixa(280, 170, 200, "Gemini redige", "com o resultado", "ex")
+    d.caixa(40, 170, 200, "Guardião do R$", "todo R$ vem dos dados", "nt")
+    d.seta((240, 68), (276, 68))
+    d.seta((480, 68), (516, 68))
+    d.seta((720, 68), (756, 68))
+    d.seta((860, 96), (860, 166))
+    d.seta((760, 198), (724, 198))
+    d.seta((520, 198), (484, 198))
+    d.seta((280, 198), (244, 198))
+    d.seta((960, 198), (985, 198), (985, 20), (620, 20), (620, 36), tracejada=True)
+    d.rotulo(800, 15, "erro no banco: 1 correção", fundo=True)
+    d.grupo(40, 270, 920, 34, "código reaproveitado do PrismaAPP: prompt, exemplos, filtro e validação (PrismaAPP/agent/src)")
     return d.salvar()
 
 
-def coletor():
-    d = Diagrama("agente-coletor", "Agente Coletor",
-                 "Lê extratos por formato, normaliza, confere a qualidade, consolida os arquivos e, no importar, "
-                 "envia em lotes ao Agente de Armazenamento.", 450)
-    d.caixa(40, 40, 200, "Extratos", "CSV, TXT, XLSX, OFX, PDF")
-    d.caixa(290, 40, 200, "Ler por formato", "estruturados: lidos aqui")
-    d.caixa(540, 40, 190, "Normalizar", "datas, valores e sinais")
-    d.caixa(780, 40, 190, "Conferir", "alertas e conciliação")
-    d.caixa(290, 180, 200, "DocStrange", "PDF escaneado e imagem", "ex")
-    d.caixa(540, 180, 190, "analisar", "relatório, nada gravado", "ag")
-    d.caixa(780, 180, 190, "Consolidar", "data + valor + ordem")
-    d.caixa(540, 320, 190, "importar", "lotes de 200", "ag")
-    d.caixa(40, 320, 200, "Armazenamento", "não grava duas vezes", "ag")
-    d.seta((240, 68), (286, 68))
-    d.seta((490, 68), (536, 68))
-    d.seta((730, 68), (776, 68))
-    d.seta((875, 96), (875, 176))
-    d.seta((390, 96), (390, 176), tracejada=True)
-    d.rotulo(398, 140, "opcional", "start")
-    d.seta((780, 208), (734, 208))
-    d.seta((875, 236), (875, 348), (734, 348))
-    d.seta((540, 348), (244, 348))
-    d.rotulo(392, 340, "salvar_lote (MCP)")
+def arquitetura():
+    d = Diagrama("arquitetura", "Arquitetura do Prisma",
+                 "A Pluggy (Open Finance) alimenta, pelo agente-sql, um banco local somente leitura. Três agentes MCP "
+                 "locais: Consultas responde com SQL validado sobre esse banco, Especialista explica com RAG e usa o "
+                 "resumo do mês e o Agente de Indicadores (Banco Central). O assistente do PrismaAPP atende o app.", 620)
+    d.caixa(40, 30, 210, "Pluggy", "Open Finance", "ex")
+    d.caixa(395, 30, 210, "Pessoa", "terminal, VS Code ou app")
+    d.caixa(750, 30, 210, "Gemini", "texto e SQL · opcional", "ex")
+    d.caixa(40, 140, 210, "agente-sql", "./prisma.sh pluggy", "nt")
+    d.caixa(750, 140, 210, "PrismaAPP", "app Android", "ex")
+    d.grupo(20, 228, 960, 120, "serviços locais")
+    d.caixa(40, 270, 200, "Consultas", "8006 · SQL validado", "ag")
+    d.caixa(280, 270, 200, "Especialista", "8002 · RAG", "ag")
+    d.caixa(520, 270, 200, "Indicadores", "8004 · Banco Central", "ag")
+    d.caixa(760, 270, 200, "Assistente do app", "8010 · text-to-SQL", "ag")
+    d.caixa(40, 410, 200, "Banco da Pluggy", "~/.prisma/app", "dd")
+    d.caixa(280, 410, 200, "Chroma", "índice vetorial", "dd")
+    d.caixa(520, 410, 200, "Banco Central", "API pública", "ex")
+    d.caixa(280, 510, 200, "base_conhecimento/", "37 materiais", "dd")
+    d.seta((145, 86), (145, 136))
+    d.seta((40, 168), (26, 168), (26, 438), (36, 438))
+    d.rotulo(34, 214, "grava", "start", fundo=True)
+    d.seta((420, 86), (420, 266))
+    d.seta((460, 270), (460, 118), (855, 118), (855, 90), tracejada=True)
+    d.seta((140, 326), (140, 406))
+    d.rotulo(148, 372, "só leitura", "start")
+    d.seta((300, 326), (300, 370), (220, 370), (220, 406))
+    d.seta((420, 326), (420, 406))
+    d.seta((480, 298), (516, 298))
+    d.rotulo(498, 290, "MCP")
+    d.seta((620, 326), (620, 406))
+    d.seta((855, 196), (855, 266))
+    d.seta((380, 510), (380, 470))
+    d.rotulo(388, 494, "indexar", "start")
+    d.tipos = ["ag", "nt", "dd", "ex"]
+    return d.salvar()
+
+
+def pluggy():
+    d = Diagrama("dados-pluggy", "Dados da Pluggy",
+                 "O gerar_banco.py do agente-sql baixa contas, cartões e transações da Pluggy para um banco SQLite "
+                 "local, com a mesma vw_registers do PrismaAPP. Especialista, Consultas e agente-sql leem esse banco "
+                 "somente para leitura.", 350)
+    d.caixa(40, 40, 200, "API da Pluggy", "Open Finance", "ex")
+    d.caixa(300, 40, 200, "gerar_banco.py", "./prisma.sh pluggy", "nt")
+    d.caixa(560, 40, 220, "Banco da Pluggy", "vw_registers e contas", "dd")
+    d.caixa(40, 180, 220, "Especialista", "resumo do mês", "ag")
+    d.caixa(300, 180, 220, "Consultas", "SQL validado", "ag")
+    d.caixa(560, 180, 220, "agente-sql", "saldo, fatura e limite", "ag")
+    d.seta((240, 68), (296, 68))
+    d.seta((500, 68), (556, 68))
+    d.seta((580, 96), (580, 128), (150, 128), (150, 176))
+    d.seta((610, 96), (610, 145), (410, 145), (410, 176))
+    d.seta((690, 96), (690, 176))
+    d.grupo(40, 256, 740, 34, "arquivo local com permissão 600; os agentes abrem somente para leitura")
     return d.salvar()
 
 
@@ -147,7 +177,7 @@ def especialista():
     d = Diagrama("agente-especialista", "Agente Especialista",
                  "Indexar: a base é dividida em pedaços, vira vetores e vai para o Chroma. Perguntar: a pergunta vira "
                  "vetor, o Chroma traz os trechos, o filtro de nota mantém os relevantes e, com chave, o Gemini escreve "
-                 "a resposta com o resumo do mês, o perfil financeiro e as taxas do Banco Central.", 640)
+                 "a resposta com o resumo do mês (dados da Pluggy) e as taxas do Banco Central.", 640)
     d.grupo(20, 18, 960, 120, "indexar · ./prisma.sh indexar")
     d.caixa(40, 62, 200, "base_conhecimento/", "37 materiais em JSONL", "dd")
     d.caixa(280, 62, 200, "Limpar e dividir", "pedaços de 800 caracteres")
@@ -157,7 +187,7 @@ def especialista():
     d.seta((480, 90), (516, 90))
     d.seta((720, 90), (756, 90))
     d.grupo(20, 170, 960, 410, "perguntar · ./prisma.sh especialista perguntar")
-    d.caixa(40, 214, 200, "Pergunta", "com ou sem --titular", "ag")
+    d.caixa(40, 214, 200, "Pergunta", "com ou sem --com-dados", "ag")
     d.caixa(280, 214, 200, "Embedding", "o mesmo modelo do índice")
     d.caixa(520, 214, 200, "Busca no Chroma", "4 trechos mais parecidos")
     d.caixa(760, 214, 200, "Filtro de nota", "PRISMA_NOTA_MINIMA")
@@ -165,12 +195,10 @@ def especialista():
     d.seta((480, 242), (516, 242))
     d.seta((720, 242), (756, 242))
     d.seta((860, 118), (860, 150), (620, 150), (620, 210))
-    d.caixa(40, 340, 200, "Resumo do mês", "Armazenamento + Python", "ag")
-    d.caixa(280, 340, 200, "Perfil financeiro", "Agente de Perfil", "ag")
+    d.caixa(40, 340, 200, "Resumo do mês", "banco da Pluggy", "dd")
     d.caixa(520, 340, 200, "Monta o prompt", "regras, dados e trechos")
     d.caixa(760, 340, 200, "GOOGLE_API_KEY?", "chave preenchida no .env")
     d.seta((860, 270), (860, 300), (620, 300), (620, 336))
-    d.seta((480, 368), (516, 368))
     d.seta((140, 396), (140, 424), (525, 424), (525, 400))
     d.caixa(40, 480, 200, "Indicadores", "Banco Central, via MCP", "ag")
     d.seta((240, 508), (545, 508), (545, 400))
@@ -184,92 +212,14 @@ def especialista():
     return d.salvar()
 
 
-def perfil():
-    d = Diagrama("agente-perfil", "Agente de Perfil Financeiro",
-                 "As transações do titular são categorizadas e seguem por três caminhos: indicadores em Python, o "
-                 "autoencoder que aponta compras atípicas e o classificador que estima se a pessoa está endividada. "
-                 "Os dois primeiros formam o score de 0 a 100; a classificação vai junto no perfil. As redes são "
-                 "treinadas uma vez com dados sintéticos e exportadas para .npz.", 720)
-    d.caixa(390, 30, 220, "Transações", "consultar_titular (MCP)", "ag")
-    d.caixa(390, 130, 220, "Categorizar", "descrição → categoria", "nt")
-    d.caixa(40, 240, 260, "Indicadores em Python", "renda, saldo, juros, fatura", "nt")
-    d.caixa(340, 240, 280, "Autoencoder", "27→32→16→6→16→32→27", "rn")
-    d.caixa(660, 240, 300, "Classificador (MLP)", "13→32→16→1 · está endividado?", "rn")
-    d.caixa(340, 350, 280, "Compras atípicas", "erro acima do limiar, com motivos", "rn")
-    d.caixa(180, 460, 260, "Score de 0 a 100", "baixo · moderado · alto", "nt")
-    d.caixa(560, 460, 400, "perfil_financeiro", "score, atípicas e classificação", "ag")
-    d.seta((500, 86), (500, 126))
-    d.seta((440, 186), (440, 212), (170, 212), (170, 236))
-    d.seta((480, 186), (480, 236))
-    d.seta((560, 186), (560, 212), (810, 212), (810, 236))
-    d.seta((480, 296), (480, 346))
-    d.seta((170, 296), (170, 488), (176, 488))
-    d.rotulo(178, 400, "90 pontos", "start")
-    d.seta((420, 406), (420, 456))
-    d.rotulo(428, 436, "10 pontos", "start")
-    d.seta((440, 488), (556, 488))
-    d.seta((810, 296), (810, 456))
-    d.rotulo(818, 380, "não entra no score", "start")
-    d.grupo(20, 545, 940, 115, "treino, uma vez · ./prisma.sh perfil treinar")
-    d.caixa(40, 585, 200, "Gerador sintético", "NeuralNetwork/src", "rn")
-    d.caixa(280, 585, 200, "Features", "por transação e por janela", "rn")
-    d.caixa(520, 585, 200, "Treino", "autoencoder e MLP", "rn")
-    d.caixa(760, 585, 180, "perfil_*.npz", "~/.prisma/modelos", "dd")
-    d.seta((240, 613), (276, 613))
-    d.seta((480, 613), (516, 613))
-    d.seta((720, 613), (756, 613))
-    d.seta((940, 613), (980, 613), (980, 268), (964, 268))
-    d.rotulo(974, 440, "pesos", "end", fundo=True)
-    return d.salvar()
-
-
-def arquitetura():
-    d = Diagrama("arquitetura", "Arquitetura do Prisma",
-                 "Cinco agentes MCP locais. Coletor, Perfil Financeiro e Especialista falam com o Armazenamento, o único "
-                 "que acessa o SQLite. O Especialista consulta o Perfil, o Agente de Indicadores (que busca dados no "
-                 "Banco Central), o Chroma e, opcionalmente, o Gemini. O Orientador CrewAI, opcional, usa os agentes "
-                 "como ferramentas.", 740)
-    d.caixa(30, 30, 210, "Extratos", "CSV, TXT, XLSX, OFX, PDF")
-    d.caixa(395, 30, 210, "Pessoa", "terminal, VS Code ou chat")
-    d.caixa(760, 30, 210, "Gemini", "Especialista e Orientador", "ex")
-    d.caixa(395, 140, 210, "Orientador (CrewAI)", "opcional · usa o Gemini", "ex")
-    d.grupo(20, 228, 960, 248, "agentes MCP · ./prisma.sh sobe e monitora (127.0.0.1, com token)")
-    d.caixa(40, 270, 200, "Coletor", "8001 · lê extratos", "ag")
-    d.caixa(280, 270, 200, "Perfil Financeiro", "8003 · redes neurais", "ag")
-    d.caixa(520, 270, 200, "Especialista", "8002 · RAG", "ag")
-    d.caixa(760, 270, 200, "Indicadores", "8004 · Banco Central", "ag")
-    d.caixa(280, 390, 200, "Armazenamento", "8000 · dono do banco", "ag")
-    d.caixa(280, 520, 200, "SQLite", "Fernet + HMAC", "dd")
-    d.caixa(520, 520, 200, "Chroma", "índice vetorial", "dd")
-    d.caixa(760, 520, 200, "Banco Central", "API SGS, pública", "ex")
-    d.caixa(520, 620, 200, "base_conhecimento/", "37 materiais", "dd")
-    d.seta((135, 86), (135, 266))
-    d.seta((500, 86), (500, 136))
-    d.seta((500, 196), (500, 226))
-    d.rotulo(508, 216, "escolhe as ferramentas", "start")
-    d.seta((700, 266), (700, 180), (865, 180), (865, 90), tracejada=True)
-    d.seta((140, 326), (140, 418), (276, 418))
-    d.rotulo(208, 410, "salvar_lote")
-    d.seta((380, 326), (380, 386))
-    d.seta((560, 326), (560, 418), (484, 418))
-    d.rotulo(522, 410, "consultar")
-    d.seta((520, 298), (484, 298))
-    d.seta((720, 298), (756, 298))
-    d.seta((860, 326), (860, 516))
-    d.seta((640, 326), (640, 516))
-    d.seta((380, 446), (380, 516))
-    d.seta((620, 620), (620, 580))
-    d.rotulo(628, 604, "indexar", "start")
-    d.tipos = ["ag", "dd", "ex"]                      # Extratos e Pessoa não são etapas em Python
-    return d.salvar()
 
 
 def indicadores():
     d = Diagrama("agente-indicadores", "Agente de Indicadores",
-                 "O Especialista e o Orientador chamam as ferramentas MCP do Agente de Indicadores; as contas são feitas "
+                 "O Especialista chama as ferramentas MCP do Agente de Indicadores; as contas são feitas "
                  "em Python sobre dados do Banco Central, guardados em cache por 12 horas. Só os códigos das séries saem "
                  "da máquina.", 380)
-    d.caixa(40, 60, 240, "Especialista e Orientador", "pedem por MCP", "ag")
+    d.caixa(40, 60, 240, "Especialista", "pede por MCP", "ag")
     d.caixa(330, 60, 290, "Ferramentas MCP", "juros, indicador, simular, histórico", "ag")
     d.caixa(670, 60, 290, "Contas em Python", "comparação, simulação, teto legal")
     d.caixa(330, 200, 270, "Cache local", "~/.prisma/indicadores · 12 h", "dd")
@@ -286,26 +236,24 @@ def indicadores():
 def embeddings():
     d = Diagrama("modos-embeddings", "Modos de embeddings",
                  "Com PRISMA_EMBEDDINGS=local, os vetores são calculados na máquina por um modelo multilíngue; com "
-                 "gemini, pela API do Google. Cada modo tem o próprio índice. Escrever a resposta depende só da "
-                 "GOOGLE_API_KEY.", 590)
+                 "lexico, por palavras, sem modelo; com gemini, pela API do Google. Cada modo tem o próprio índice. "
+                 "Escrever a resposta depende só da GOOGLE_API_KEY.", 590)
     d.caixa(370, 30, 260, "Texto", "pedaço da base ou pergunta")
-    d.caixa(110, 140, 280, "PRISMA_EMBEDDINGS=local")
-    d.caixa(610, 140, 280, "PRISMA_EMBEDDINGS=gemini")
-    d.caixa(110, 240, 280, "Modelo local (fastembed)", "MiniLM multilíngue · 384 números")
-    d.caixa(610, 240, 280, "API do Gemini", "gemini-embedding-001 · 3.072", "ex")
-    d.caixa(110, 340, 280, "Chroma", "~/.prisma/rag/local", "dd")
-    d.caixa(610, 340, 280, "Chroma", "~/.prisma/rag/gemini", "dd")
-    d.seta((440, 86), (440, 112), (250, 112), (250, 136))
-    d.seta((560, 86), (560, 112), (750, 112), (750, 136))
-    d.seta((250, 196), (250, 236))
-    d.seta((750, 196), (750, 236))
-    d.seta((250, 296), (250, 336))
-    d.seta((750, 296), (750, 336))
+    for x, modo in ((30, "local"), (360, "lexico"), (690, "gemini")):
+        d.caixa(x, 140, 280, f"PRISMA_EMBEDDINGS={modo}")
+        d.caixa(x, 340, 280, "Chroma", f"~/.prisma/rag/{modo}", "dd")
+        d.seta((x + 140, 196), (x + 140, 236))
+        d.seta((x + 140, 296), (x + 140, 336))
+    d.caixa(30, 240, 280, "Modelo local (fastembed)", "MiniLM multilíngue · 384 números")
+    d.caixa(360, 240, 280, "Palavras, sem modelo", "2.048 posições · sem internet")
+    d.caixa(690, 240, 280, "API do Gemini", "gemini-embedding-001 · 3.072", "ex")
+    d.seta((440, 86), (440, 112), (170, 112), (170, 136))
+    d.seta((500, 86), (500, 136))
+    d.seta((560, 86), (560, 112), (830, 112), (830, 136))
     d.grupo(300, 425, 400, 112, "independente do modo")
     d.caixa(320, 458, 360, "Escrever a resposta", "Gemini só com GOOGLE_API_KEY", "ex", h=56)
     return d.salvar()
 
-
 if __name__ == "__main__":
-    for f in (arquitetura, armazenamento, coletor, especialista, perfil, indicadores, embeddings):
+    for f in (arquitetura, pluggy, especialista, indicadores, consultas, embeddings):
         print("gerado:", f())

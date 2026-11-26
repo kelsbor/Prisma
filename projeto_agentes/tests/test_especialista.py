@@ -1,7 +1,7 @@
-"""Especialista sem internet: manutenção da RAG (com embeddings falsos) e resumo vindo do Armazenamento."""
+"""Especialista sem internet: manutenção da RAG (com embeddings falsos) e resumo do banco da Pluggy."""
 
-import asyncio
 import json
+from datetime import date
 import os
 import tempfile
 from pathlib import Path
@@ -9,11 +9,9 @@ from pathlib import Path
 BASE = Path(tempfile.mkdtemp(prefix="prisma-base-"))
 os.environ["PRISMA_BASE"] = str(BASE)
 
-from coletor import pipeline  # noqa: E402
-from comum.cliente_mcp import conectar  # noqa: E402
-from especialista import agente, dados, rag  # noqa: E402
+import pytest  # noqa: E402
 
-TITULAR = "222.222.222-22"  # fictício
+from especialista import agente, dados, rag  # noqa: E402
 
 
 def _escrever(nome, paginas):
@@ -43,16 +41,18 @@ def test_manutencao_da_rag():
     assert [t["fonte"] for t in trechos] == ["B"] and trechos[0]["pagina"] == 1
 
 
-def test_resumo_vem_do_armazenamento():
-    async def preparar():
-        _, consolidado = pipeline.analisar()
-        async with conectar() as cliente:
-            await pipeline.enviar(cliente, TITULAR, consolidado)
-        return await dados.transacoes(TITULAR)
+def test_resumo_do_banco_da_pluggy(banco_app):
+    r = dados.resumo("2026-10", hoje=date(2026, 11, 18))
+    assert r["entradas"] == 5000.0 and r["gastos"] == 349.5          # a fatura (transferência) não conta como gasto
+    assert r["saldo_do_mes"] == 4650.5 and r["maiores_gastos_por_categoria"][0]["categoria"] == "Supermercado"
+    assert r["meses_com_dados"] == ["2026-10"]                          # a parcela futura fica de fora
+    assert {c["tipo"] for c in r["contas"]} == {"conta", "cartão"} and r["contas"][0]["conta"] == "Conta"
 
-    resumo = dados.resumo(asyncio.run(preparar()))
-    assert resumo["periodo"] == "2026-10" and resumo["saldo"] == round(resumo["entradas"] - resumo["saidas"], 2)
-    assert dados.resumo([])["erro"]
+
+def test_sem_banco_da_pluggy(tmp_path, monkeypatch):
+    monkeypatch.setattr(dados, "BANCO_APP", tmp_path / "nao-existe.db")
+    with pytest.raises(dados.SemDados, match="prisma.sh pluggy"):
+        dados.resumo()
 
 
 def test_perguntar_sem_chave_devolve_trechos():
@@ -73,3 +73,30 @@ def test_prompt_fica_registrado(monkeypatch):
     monkeypatch.setenv("PRISMA_LOG_PROMPTS", "0")              # desligado: nada é gravado
     agente.perguntar("outra pergunta")
     assert len(log_prompts.ultimos(1000)) == antes + 1
+
+
+def test_embeddings_lexicos_aproximam_textos_do_mesmo_assunto():
+    e = rag.EmbeddingsLexicos()
+    q = e.embed_query("Como funciona o cheque especial?")
+    perto = e.embed_query("O cheque especial é um limite de crédito ligado à conta corrente.")
+    longe = e.embed_query("Receita de bolo de chocolate com cobertura.")
+    cos = lambda a, b: sum(x * y for x, y in zip(a, b))
+    assert cos(q, perto) > 0.2 > cos(q, longe)
+
+
+def test_avaliacao_da_busca(monkeypatch):
+    from especialista import avaliacao
+    respostas = {
+        "rotativo?": [{"fonte": "F", "pagina": 1, "nota": 0.8, "arquivo": "outro.jsonl"},
+                      {"fonte": "F", "pagina": 2, "nota": 0.7, "arquivo": "cartao.jsonl"}],
+        "cheque?": [{"fonte": "F", "pagina": 1, "nota": 0.9, "arquivo": "cheque.jsonl"}],
+        "futebol?": [{"fonte": "F", "pagina": 1, "nota": 0.3, "arquivo": "outro.jsonl"}],
+    }
+    monkeypatch.setattr(rag, "buscar", lambda p, k=4: respostas[p])
+    r = avaliacao.avaliar(4, [{"pergunta": "rotativo?", "esperado": ["cartao"]},
+                              {"pergunta": "cheque?", "esperado": ["cheque"]},
+                              {"pergunta": "futebol?", "esperado": []}])
+    assert r["acerto@1"] == 0.5 and r["acerto@4"] == 1.0 and r["mrr"] == 0.75
+    assert r["notas_acertos"] == [0.7, 0.9] and r["notas_fora_do_tema"] == [0.3, 0.3]
+    assert 0.3 < r["nota_minima_sugerida"] <= 0.7                      # separa acertos de fora do tema
+    assert len(avaliacao.carregar()) >= 20                               # o conjunto de perguntas do projeto

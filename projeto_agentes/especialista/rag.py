@@ -22,13 +22,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from comum.config import DATA_DIR, RAIZ, log
 
-PASTA_BASE = Path(os.getenv("PRISMA_BASE", RAIZ / "base_conhecimento"))
+PASTA_BASE = Path(os.getenv("PRISMA_BASE") or RAIZ / "base_conhecimento").expanduser()
 # Embeddings: "gemini" (padrão, precisa da GOOGLE_API_KEY), "local" (modelo multilíngue rodando na
-# própria máquina, sem chave nem cota; baixa ~220 MB na primeira vez) ou "falso" (só para testes).
-MODO_EMBEDDINGS = os.getenv("PRISMA_EMBEDDINGS", "gemini")
-MODELO_EMBEDDING = (os.getenv("PRISMA_MODELO_EMBEDDING_LOCAL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# própria máquina, sem chave nem cota; baixa ~220 MB na primeira vez), "lexico" (busca por palavras,
+# sem modelo nem internet) ou "falso" (vetores aleatórios, só para testes de manutenção do índice).
+MODO_EMBEDDINGS = os.getenv("PRISMA_EMBEDDINGS") or "gemini"
+MODELO_EMBEDDING = ((os.getenv("PRISMA_MODELO_EMBEDDING_LOCAL") or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
                     if MODO_EMBEDDINGS == "local"
-                    else os.getenv("PRISMA_MODELO_EMBEDDING", "models/gemini-embedding-001"))
+                    else (os.getenv("PRISMA_MODELO_EMBEDDING") or "models/gemini-embedding-001"))
 PASTA_INDICE = DATA_DIR / "rag" / MODO_EMBEDDINGS          # um índice por modo: trocar não apaga o outro
 LOTE = 100                       # pedaços por chamada de embedding
 MIN_CARACTERES = 80
@@ -115,7 +116,47 @@ class EmbeddingsLocais:
         return self.embed_documents([texto])[0]
 
 
+class EmbeddingsLexicos:
+    """Busca por palavras, sem modelo e sem internet: cada texto vira um vetor de 2.048 posições com as
+    palavras e pares de palavras (sem acento, sem palavras comuns), em peso log. Pega sinônimos mal, mas
+    serve para testar a RAG em qualquer máquina e como alternativa quando não dá para baixar o modelo."""
+
+    DIM = 2048
+    COMUNS = set("""a o as os um uma uns umas de da do das dos em na no nas nos por para com sem sob que se
+    e ou mas como mais menos muito muita muitos muitas ao aos à às pelo pela pelos pelas seu sua seus suas meu
+    minha meus minhas eu voce voces ele ela eles elas isso isto esse essa este esta qual quais quando onde ja
+    nao sim ser estar ter ha foi sao era tem pode posso devo deve fazer faz qualquer outro outra""".split())
+
+    @classmethod
+    def _palavras(cls, texto: str) -> list[str]:
+        import unicodedata
+        t = unicodedata.normalize("NFKD", texto.lower()).encode("ascii", "ignore").decode()
+        return [w for w in re.findall(r"[a-z0-9]+", t) if len(w) > 2 and w not in cls.COMUNS]
+
+    @classmethod
+    def _vetor(cls, texto: str) -> list[float]:
+        import math
+        p = cls._palavras(texto)
+        contagem = {}
+        for termo in p + [f"{a}_{b}" for a, b in zip(p, p[1:])]:
+            contagem[termo] = contagem.get(termo, 0) + 1
+        v = [0.0] * cls.DIM
+        for termo, n in contagem.items():
+            h = int(hashlib.md5(termo.encode()).hexdigest(), 16)
+            v[h % cls.DIM] += (1.0 if (h >> 20) % 2 else -1.0) * (1 + math.log(n))
+        norma = math.sqrt(sum(x * x for x in v)) or 1.0
+        return [x / norma for x in v]
+
+    def embed_documents(self, textos):
+        return [self._vetor(t) for t in textos]
+
+    def embed_query(self, texto):
+        return self._vetor(texto)
+
+
 def _embeddings():
+    if MODO_EMBEDDINGS == "lexico":
+        return EmbeddingsLexicos()
     if MODO_EMBEDDINGS == "falso":                          # só para testes sem internet
         from langchain_core.embeddings import DeterministicFakeEmbedding
         return DeterministicFakeEmbedding(size=256)
@@ -237,4 +278,4 @@ def buscar(pergunta: str, k: int = 4) -> list[dict]:
     """Os k trechos mais parecidos com a pergunta, com fonte, página e nota (0 a 1)."""
     achados = _abrir().similarity_search_with_relevance_scores(pergunta, k=k)
     return [{"fonte": d.metadata["fonte"], "pagina": d.metadata["pagina"], "nota": round(n, 3),
-             "texto": d.page_content} for d, n in achados]
+             "arquivo": d.metadata.get("arquivo", ""), "texto": d.page_content} for d, n in achados]

@@ -2,8 +2,8 @@
 
 Cada chamada do `perguntar` vira uma linha JSON em ~/.prisma/logs/prompts.jsonl, com o prompt exato
 (o mesmo texto que vai, ou iria, para o Gemini), os trechos usados, a resposta e quanto tempo levou.
-O arquivo fica na máquina, fora do repositório. Ele contém o resumo financeiro do titular quando há
---titular: trate-o como dado pessoal.
+O arquivo fica na máquina, fora do repositório. Com --com-dados, ele contém o resumo do mês da pessoa:
+trate-o como dado pessoal.
 
     PRISMA_LOG_PROMPTS=0   desliga o registro
 """

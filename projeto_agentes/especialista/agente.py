@@ -1,6 +1,6 @@
 """Responde perguntas juntando a RAG (conceitos) e o resumo do mês (números), com o Gemini escrevendo o texto.
 
-Regra de ouro: os números vêm do Armazenamento e do Python; o Gemini só escreve.
+Regra de ouro: os números vêm do banco da Pluggy (SQL), do Python e do Banco Central; o Gemini só escreve.
 """
 
 import os
@@ -8,8 +8,8 @@ import time
 
 from especialista import log_prompts, rag
 
-MODELO_LLM = os.getenv("PRISMA_MODELO_LLM", "gemini-3.5-flash-lite")
-NOTA_MINIMA = float(os.getenv("PRISMA_NOTA_MINIMA", "0.5"))
+MODELO_LLM = os.getenv("PRISMA_MODELO_LLM") or os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite"
+NOTA_MINIMA = float(os.getenv("PRISMA_NOTA_MINIMA") or "0.5")
 
 PROMPT = """Você é o especialista financeiro do Prisma, um app de bem-estar financeiro. Ajude a pessoa a planejar; a decisão é sempre dela.
 
@@ -21,8 +21,7 @@ Regras:
 - Se dois trechos se contradizem, siga as "Atualizações da equipe" do Prisma, que corrigem materiais antigos, e não repita a informação desatualizada.
 - Materiais antigos podem estar desatualizados: se um trecho falar de regra ou lei com data, avise que vale conferir se ainda está em vigor.
 - Não recomende produtos financeiros específicos (ações, fundos, bancos). Não julgue gastos.
-- O score do perfil_financeiro (risco de endividamento, de 0 a 100) serve para escolher o tom, não para ser repetido como nota. Se a faixa for "alto", comece acolhendo, sem tom de alarme, e priorize um passo pequeno e possível.
-- Transações atípicas são perguntas, nunca acusações ("essa compra repetida foi você mesmo?").
+- Se os gastos do mês passam das entradas, comece acolhendo, sem tom de alarme, e priorize um passo pequeno e possível.
 - Responda em português do Brasil, curto, com valores como R$ 1.234,56.
 
 ## DADOS DO USUÁRIO

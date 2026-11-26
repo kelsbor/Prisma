@@ -10,10 +10,8 @@ __pycache__/
 *.swp
 chaves.json
 *.db
-mlruns/
+*.db-wal
+*.db-shm
 
-# Sistema e ferramentas
+# Sistema
 .DS_Store
-report.md
-.crewai/
-.venv-crew/

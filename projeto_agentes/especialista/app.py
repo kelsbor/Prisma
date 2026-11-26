@@ -2,8 +2,9 @@
 
 Ferramentas:
 - buscar_conhecimento: consulta a RAG (base_conhecimento) e devolve trechos com fonte e página.
-- consultar_transacoes: busca as transações no Agente de Armazenamento (via MCP) e resume o mês.
-- perguntar: junta as duas coisas e o Gemini escreve a resposta.
+- resumo_do_mes: resume o mês com os dados da Pluggy (banco gerado pelo agente-sql), somente leitura.
+- perguntar: junta a base, as taxas do Banco Central (Agente de Indicadores, via MCP) e, se pedido,
+  o resumo do mês; o Gemini escreve a resposta.
 - status_base / atualizar_base: manutenção da RAG.
 """
 
@@ -17,7 +18,7 @@ mcp = MCPServer(
     name="agente-especialista",
     instructions=(
         "Agente Especialista do Prisma. Use buscar_conhecimento para conceitos financeiros (com fonte e página), "
-        "consultar_transacoes para os números da pessoa e perguntar para uma resposta pronta que junta os dois. "
+        "resumo_do_mes para os números da pessoa (dados da Pluggy) e perguntar para uma resposta pronta. "
         "Os números vêm dos dados; não invente valores. Não recomende produtos financeiros específicos."
     ),
 )
@@ -30,21 +31,25 @@ async def buscar_conhecimento(pergunta: str, k: int = 4) -> dict:
 
 
 @mcp.tool()
-async def consultar_transacoes(titular_id: str, periodo: str | None = None) -> dict:
-    """Resumo do mês (AAAA-MM) do titular, com dados do Agente de Armazenamento: entradas, saídas, saldo,
-    maiores gastos e transações com alerta. Sem período, usa o mês mais recente com dados."""
-    return dados.resumo(await dados.transacoes(titular_id), periodo)
+async def resumo_do_mes(periodo: str | None = None) -> dict:
+    """Resumo do mês (AAAA-MM) com os dados da Pluggy: entradas, gastos, saldo do mês, maiores categorias
+    e saldo/fatura/limite das contas. Sem período, usa o mês atual."""
+    try:
+        return await asyncio.to_thread(dados.resumo, periodo)
+    except dados.SemDados as e:
+        return {"erro": str(e)}
 
 
 @mcp.tool()
-async def perguntar(pergunta: str, titular_id: str | None = None, periodo: str | None = None) -> dict:
-    """Responde uma dúvida financeira usando a base de conhecimento e, se houver titular, o resumo do mês
-    e o perfil financeiro dele."""
-    if titular_id:
-        ts = await dados.transacoes(titular_id)
-        resumo = await asyncio.to_thread(dados.dados_do_usuario, ts, periodo)   # resumo do mês + perfil financeiro
-    else:
-        resumo = None
+async def perguntar(pergunta: str, usar_meus_dados: bool = False, periodo: str | None = None) -> dict:
+    """Responde uma dúvida financeira com a base de conhecimento e as taxas do Banco Central. Com
+    usar_meus_dados, inclui o resumo do mês (dados da Pluggy), que então também vai para o Gemini."""
+    resumo = None
+    if usar_meus_dados:
+        try:
+            resumo = await asyncio.to_thread(dados.resumo, periodo)
+        except dados.SemDados as e:
+            resumo = {"erro": str(e)}
     taxas = await dados.indicadores()                                         # Agente de Indicadores (MCP)
     return await asyncio.to_thread(agente.perguntar, pergunta, resumo, taxas)
 

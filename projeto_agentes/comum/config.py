@@ -1,4 +1,4 @@
-"""Configuração compartilhada pelos agentes do Prisma: pasta de dados, chaves e logs."""
+"""Configuração compartilhada pelos agentes do Prisma: .env único, pasta de dados, token e logs."""
 
 import json
 import os
@@ -6,13 +6,11 @@ import secrets
 import sys
 from pathlib import Path
 
-from cryptography.fernet import Fernet
-
-RAIZ = Path(__file__).resolve().parent.parent          # pasta do projeto
+RAIZ = Path(__file__).resolve().parent.parent          # pasta do projeto (projeto_agentes)
 
 
 def _carregar_env(arquivo: Path) -> None:
-    """Lê KEY=VALOR de um .env na raiz do projeto, sem sobrescrever o que já está no ambiente."""
+    """Lê KEY=VALOR do .env, sem sobrescrever o que já está no ambiente."""
     if not arquivo.exists():
         return
     for linha in arquivo.read_text(encoding="utf-8").splitlines():
@@ -22,9 +20,10 @@ def _carregar_env(arquivo: Path) -> None:
             os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
 
 
-_carregar_env(RAIZ / ".env")
-DATA_DIR = Path(os.getenv("PRISMA_DIR", Path.home() / ".prisma"))
-NOMES_CHAVES = ("MCP_TOKEN", "ENCRYPTION_KEY", "HASH_KEY")
+_carregar_env(Path(os.getenv("PRISMA_ENV_FILE") or RAIZ / ".env").expanduser())
+DATA_DIR = Path(os.getenv("PRISMA_DIR") or Path.home() / ".prisma").expanduser()
+# Banco com os dados da Pluggy (gerado pelo agente-sql: ./prisma.sh pluggy). Mesmas tabelas do PrismaAPP.
+BANCO_APP = Path(os.getenv("PRISMA_APP_DB") or DATA_DIR / "app" / "prisma.db").expanduser()
 
 
 def log(agente: str, msg: str) -> None:
@@ -33,25 +32,21 @@ def log(agente: str, msg: str) -> None:
 
 
 def carregar_chaves() -> dict:
-    """Variáveis de ambiente têm prioridade; o que faltar vem de ~/.prisma/chaves.json (gerado na 1ª vez)."""
-    do_ambiente = {k: os.environ[k] for k in NOMES_CHAVES if os.getenv(k)}
-    if len(do_ambiente) == len(NOMES_CHAVES):
-        return do_ambiente
-
+    """Token dos serviços HTTP locais. MCP_TOKEN no ambiente tem prioridade; senão vem de
+    ~/.prisma/chaves.json, gerado na 1ª vez com permissão 600."""
+    if os.getenv("MCP_TOKEN"):
+        return {"MCP_TOKEN": os.environ["MCP_TOKEN"]}
     arquivo = DATA_DIR / "chaves.json"
     if arquivo.exists():
         chaves = json.loads(arquivo.read_text())
-    else:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        chaves = {
-            "MCP_TOKEN": secrets.token_urlsafe(48),
-            "ENCRYPTION_KEY": Fernet.generate_key().decode(),
-            "HASH_KEY": secrets.token_urlsafe(48),
-        }
-        arquivo.write_text(json.dumps(chaves, indent=2))
-        try:
-            arquivo.chmod(0o600)
-        except OSError:
-            pass  # o Windows ignora permissões POSIX
-        log("prisma", f"Chaves novas geradas em {arquivo}. Faça backup: sem elas os dados não podem ser lidos.")
-    return {**chaves, **do_ambiente}
+        if chaves.get("MCP_TOKEN"):
+            return {"MCP_TOKEN": chaves["MCP_TOKEN"]}
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    chaves = {"MCP_TOKEN": secrets.token_urlsafe(48)}
+    arquivo.write_text(json.dumps(chaves, indent=2))
+    try:
+        arquivo.chmod(0o600)
+    except OSError:
+        pass  # o Windows ignora permissões POSIX
+    log("prisma", f"Token novo dos serviços gerado em {arquivo}.")
+    return chaves

@@ -2,12 +2,6 @@
   "version": "0.2.0",
   "inputs": [
     {
-      "id": "titular",
-      "type": "promptString",
-      "description": "ID do titular (use dados fictícios em testes)",
-      "default": "000.000.000-00"
-    },
-    {
       "id": "pergunta",
       "type": "promptString",
       "description": "Pergunta para o especialista",
@@ -16,79 +10,16 @@
   ],
   "configurations": [
     {
-      "name": "Coletor: analisar extratos_ficticios/",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "coletor",
-      "args": [
-        "analisar"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
-      "name": "Coletor: analisar arquivo aberto",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "coletor",
-      "args": [
-        "analisar",
-        "${file}"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
-      "name": "Coletor: importar extratos_ficticios/",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "coletor",
-      "args": [
-        "importar",
-        "--titular",
-        "${input:titular}"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
-      "name": "Armazenamento: servidor HTTP local",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "armazenamento",
-      "args": [
-        "--http"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
       "name": "Especialista: indexar base",
       "type": "debugpy",
       "request": "launch",
-      "module": "especialista",
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       },
       "console": "integratedTerminal",
       "justMyCode": true,
+      "module": "especialista",
       "args": [
         "indexar"
       ]
@@ -97,13 +28,13 @@
       "name": "Especialista: status da base",
       "type": "debugpy",
       "request": "launch",
-      "module": "especialista",
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       },
       "console": "integratedTerminal",
       "justMyCode": true,
+      "module": "especialista",
       "args": [
         "status"
       ]
@@ -112,66 +43,48 @@
       "name": "Especialista: buscar na base",
       "type": "debugpy",
       "request": "launch",
-      "module": "especialista",
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       },
       "console": "integratedTerminal",
       "justMyCode": true,
+      "module": "especialista",
       "args": [
         "buscar",
         "${input:pergunta}"
       ]
     },
     {
-      "name": "Especialista: perguntar",
+      "name": "Especialista: perguntar com os meus dados",
       "type": "debugpy",
       "request": "launch",
-      "module": "especialista",
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       },
       "console": "integratedTerminal",
       "justMyCode": true,
+      "module": "especialista",
       "args": [
         "perguntar",
         "${input:pergunta}",
-        "--titular",
-        "${input:titular}"
+        "--com-dados"
       ]
     },
     {
-      "name": "Perfil: treinar redes neurais",
+      "name": "Especialista: resumo do mês (Pluggy)",
       "type": "debugpy",
       "request": "launch",
-      "module": "perfil",
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       },
       "console": "integratedTerminal",
       "justMyCode": true,
+      "module": "especialista",
       "args": [
-        "treinar"
-      ]
-    },
-    {
-      "name": "Perfil: ver perfil financeiro",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "perfil",
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": true,
-      "args": [
-        "ver",
-        "--titular",
-        "${input:titular}"
+        "resumo"
       ]
     },
     {
@@ -208,6 +121,22 @@
         "rotativo",
         "--meses",
         "3"
+      ]
+    },
+    {
+      "name": "Consultas: perguntar",
+      "type": "debugpy",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "module": "consultas",
+      "args": [
+        "perguntar",
+        "${input:pergunta}"
       ]
     },
     {
