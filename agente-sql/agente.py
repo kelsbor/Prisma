@@ -10,8 +10,10 @@ from pathlib import Path
 
 from metricas import MetricasExecucao
 
+from configuracao import carregar
+
 PASTA = Path(__file__).parent
-CONFIG = json.loads((PASTA / "config.json").read_text(encoding="utf-8"))
+CONFIG = carregar()   # config.json, ou o .env único do projeto (veja configuracao.py)
 
 TABELAS = """
 Use SOMENTE estas fontes:
@@ -153,6 +155,9 @@ def executar_sql(sql, metricas=None):
     with (metricas.etapa("execucao_sql_ms") if metricas else nullcontext()):
         try:
             banco = sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True)
+            banco.execute("PRAGMA query_only = 1")                # nunca grava, mesmo que o SQL tente
+            limite = time.monotonic() + 5                         # e nenhuma consulta passa de 5 s
+            banco.set_progress_handler(lambda: 1 if time.monotonic() > limite else 0, 10_000)
             try:
                 cursor = banco.execute(sql)
                 colunas = [c[0] for c in cursor.description or []]

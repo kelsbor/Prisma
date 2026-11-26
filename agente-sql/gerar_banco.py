@@ -9,8 +9,10 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
+from configuracao import carregar
+
 PASTA = Path(__file__).parent
-CONFIG = json.loads((PASTA / "config.json").read_text(encoding="utf-8"))
+CONFIG = carregar()   # config.json, ou o .env único do projeto (veja configuracao.py)
 API = "https://api.pluggy.ai"
 BRASILIA = timezone(timedelta(hours=-3))
 
@@ -144,6 +146,11 @@ def todas_as_transacoes(api_key, conta_id):
 
 
 def main():
+    faltando = [k for k in ("pluggy_client_id", "pluggy_client_secret", "pluggy_item_ids") if not CONFIG.get(k)]
+    if faltando:
+        sys.exit("Faltam as credenciais da Pluggy: preencha PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e "
+                 "PLUGGY_ITEM_IDS no .env (ou o config.json).")
+    (PASTA / CONFIG["banco"]).parent.mkdir(parents=True, exist_ok=True)
     api_key = chamar("POST", "/auth", corpo={
         "clientId": CONFIG["pluggy_client_id"],
         "clientSecret": CONFIG["pluggy_client_secret"],
