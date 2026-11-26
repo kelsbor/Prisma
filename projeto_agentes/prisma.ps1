@@ -55,7 +55,6 @@ function Achar-Python {
         $exe = $t[0]
         $cmd = Get-Command $exe -ErrorAction SilentlyContinue
         if (-not $cmd) { continue }
-        if ($cmd.Source -like "*WindowsApps*") { continue }   # atalho da Microsoft Store, não é Python de verdade
         $argsV = @()
         if ($t.Count -gt 1) { $argsV += $t[1] }
         $argsV += @("-c", "import sys; print(sys.version_info >= (3, 10))")
