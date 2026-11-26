@@ -85,42 +85,54 @@ Exemplo de configuração num cliente MCP (ajuste os caminhos):
 Execute os comandos a partir de `agente-sql/`. O Python precisa ser 3.11 ou superior, e `config.json`
 deve conter a chave Gemini, o modelo e o nome do banco em `banco`. Não compartilhe esse arquivo.
 
-O benchmark usa `../projeto_agentes/perguntas_respostas_prisma(in).csv`. Para resultados comparáveis,
-aponte `banco` para uma cópia local do banco que originou esse CSV, incluindo `-wal` e `-shm` se
-existirem. Um banco Pluggy recém-gerado pode conter dados diferentes e invalidar a comparação; não
-use a cópia ativa do celular como referência sem confirmar que é o mesmo snapshot.
+O benchmark usa `benchmark/casos.jsonl`: 44 perguntas, cada uma com um **SQL de referência** e o tipo
+de fato de cada coluna (`brl`, `contagem`, `data`, `mes` ou `texto`). O gabarito não é escrito à mão: é
+gerado rodando o SQL de referência no banco configurado. Para resultados comparáveis, aponte `banco`
+(ou `PRISMA_APP_DB`) para o snapshot de 25/11/2026, incluindo `-wal` e `-shm` se existirem. Um banco
+Pluggy recém-gerado tem outros dados e outro gabarito.
+
+**Regras do conjunto**
+
+- Toda pergunta tem período explícito, como a pessoa perguntaria ("em outubro de 2026", "até hoje").
+- "Gastei" = `valor_gasto` **até hoje**. Parcelas futuras não são gasto: têm perguntas próprias
+  ("quanto ainda vou pagar de parcelas?").
+- O caso passa se **todos os fatos esperados** estiverem na resposta. Fatos a mais (o período, uma
+  contagem) não reprovam, porque o agente é orientado a dizer o período.
+
+Para ver o gabarito sem chamar o Gemini:
+
+```
+python avaliar.py --so-gabarito
+```
 
 ### Executar a avaliação
 
-Rode todos os casos com a data de referência fixa do conjunto:
-
 ```
-python avaliar.py --hoje 2026-11-25
-```
-
-O script lê pergunta/resposta do CSV, chama o agente para cada pergunta e compara fatos extraídos da
-resposta produzida com o gabarito. Os IDs `q-...` são derivados das perguntas e permanecem estáveis
-se a ordem das linhas mudar. Também é possível informar outro arquivo de casos ou outra data:
-
-```
-python avaliar.py --csv caminho/para/casos.csv --hoje AAAA-MM-DD
+python avaliar.py --hoje 2026-11-25                       # todos os casos
+python avaliar.py --hoje 2026-11-25 --mostrar-respostas   # mostra a resposta dos casos que falharam
+python avaliar.py --casos outro.jsonl --hoje AAAA-MM-DD   # outro conjunto ou outra data
 ```
 
-Cada caso mostra um destes resultados:
+O CSV antigo (`../projeto_agentes/perguntas_respostas_prisma(in).csv`) ainda é aceito com `--csv`, também
+comparando por inclusão. Ele mistura parcelas futuras com gastos e não tem período nas perguntas, então
+não serve como referência de acerto.
 
 | Resultado | Significado |
 |---|---|
-| `FATOS_OK` | Valores em reais, datas e contagens extraídos coincidem com o gabarito. |
-| `FATOS_DIVERGEM` | Os fatos extraídos não coincidem. |
-| `REVISÃO` | O gabarito não tem valores, datas ou contagens que o comparador consiga verificar. |
-| `FALHA_<tipo>` | O agente falhou antes de produzir uma resposta avaliável. |
+| `FATOS_OK` | Todos os fatos esperados (R$, datas, meses, contagens, nomes) aparecem na resposta. |
+| `FATOS_FALTANDO` | Falta pelo menos um fato; a linha seguinte diz qual. |
+| `GABARITO_ERRO` | O SQL de referência falhou no banco configurado. |
+| `FALHA_<tipo>` | O agente falhou antes de produzir uma resposta avaliável (conta como erro). |
 
-No final, `Acerto de fatos` mostra acertos/casos comparáveis; falhas do agente contam como erros.
-Código de saída `0` significa que todos os casos comparáveis passaram; `1` indica divergência,
-falha ou ausência de casos comparáveis. O script **não** compara o texto inteiro: nomes de
-estabelecimentos/categorias, contexto e qualidade da explicação não são cobertos integralmente.
-No CSV atual, 46 de 50 casos têm fatos comparáveis automaticamente; os demais exigem revisão textual.
-Trate essa nota como um indicador, não como uma garantia completa de correção.
+Os IDs `q-...` vêm do texto da pergunta e não mudam se a ordem das linhas mudar. Código de saída `0`
+significa que todos os casos passaram.
+
+**Resultado em 26/11/2026** (snapshot de 25/11/2026, `gemini-flash-lite-latest`): **37 de 44 (84%)**, sem
+falhas. Dos 7 erros, 4 são de período ("até hoje" sem data inicial entendido como mês ou ano atual), 1 é
+o nome da conta do Santander e 2 são filtros de categoria. O método antigo dava 21 de 46, mas misturava
+parcelas futuras e exigia igualdade exata de fatos.
+
+O comparador não avalia o texto inteiro (contexto e clareza); trate a nota como indicador.
 
 Opcionalmente, acrescente um juiz LLM para relevância, clareza e fundamentação:
 
