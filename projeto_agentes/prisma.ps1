@@ -16,6 +16,7 @@ Faz o mesmo que o prisma.sh do Linux.
   .\prisma.ps1 especialista perguntar "pergunta" [--com-dados]
   .\prisma.ps1 consultas perguntar "pergunta"
   .\prisma.ps1 indicadores juros
+  .\prisma.ps1 orquestrador chat                 conversa com todos os agentes (só finanças)
 
 Se o PowerShell bloquear scripts: powershell -ExecutionPolicy Bypass -File .\prisma.ps1 iniciar
 #>
@@ -295,5 +296,13 @@ switch ($Comando) {
         if (Saudavel "indicadores") { $env:INDICADORES_URL = "http://127.0.0.1:$($Agentes['indicadores'])" }
         & $Py -m $Comando @Resto
     }
-    default { Get-Content -Path $PSCommandPath -TotalCount 21 | Select-Object -Skip 1 | ForEach-Object { $_ -replace "^\s{0,2}", "" } }
+    "orquestrador" {
+        Preparar
+        # Com os agentes no ar, o orquestrador fala com eles por HTTP; senão, abre cada um por stdio.
+        if (Saudavel "indicadores") { $env:INDICADORES_URL = "http://127.0.0.1:$($Agentes['indicadores'])" }
+        else { Remove-Item Env:INDICADORES_URL -ErrorAction SilentlyContinue }
+        if (Saudavel "especialista") { $env:ESPECIALISTA_URL = "http://127.0.0.1:$($Agentes['especialista'])" }
+        & $Py -m orquestrador @Resto
+    }
+    default { Get-Content -Path $PSCommandPath -TotalCount 22 | Select-Object -Skip 1 | ForEach-Object { $_ -replace "^\s{0,2}", "" } }
 }

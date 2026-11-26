@@ -59,26 +59,13 @@ def test_manipulacao_e_bloqueada_sem_chamar_o_llm():
     assert f.classificador_recebeu == [] and f.agentes_receberam == []
 
 
-def test_sinal_de_sofrimento_recebe_o_cvv_sem_chamar_o_llm():
-    f = Falsos()
-    r = perguntar(f.orquestrador(), "com essas dívidas eu não aguento mais viver")
-    assert r["rota"] == "apoio"
-    assert "188" in r["resposta"]
-    assert f.classificador_recebeu == []
-
-
 def test_fora_do_escopo_e_recusado_sem_chamar_agentes():
     f = Falsos([Classificacao(escopo="fora_do_escopo", pergunta_autonoma="Quem ganhou o jogo ontem?")])
     r = perguntar(f.orquestrador(), "Quem ganhou o jogo ontem?")
     assert r["rota"] == "fora_do_escopo"
     assert r["resposta"] == guardas.MSG_FORA_DO_ESCOPO
+    assert "não vou responder" in r["resposta"].lower() and "finanças" in r["resposta"]
     assert f.agentes_receberam == []
-
-
-def test_apoio_pelo_classificador_tambem_recebe_o_cvv():
-    f = Falsos([Classificacao(escopo="apoio", pergunta_autonoma="Estou desesperada com tudo")])
-    r = perguntar(f.orquestrador(), "Estou desesperada com tudo")
-    assert r["rota"] == "apoio" and "188" in r["resposta"]
 
 
 def test_classificador_fora_do_ar_da_mensagem_clara():

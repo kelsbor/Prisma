@@ -1,7 +1,7 @@
 """Prisma · Orquestrador (MCP).
 
 Uma ferramenta só, `conversar`: recebe a mensagem da pessoa, aplica as barreiras (manipulação,
-sofrimento, "só finanças"), chama o agente-sql, o Especialista e/ou o Indicadores e devolve uma
+"só finanças"), chama o agente-sql, o Especialista e/ou o Indicadores e devolve uma
 resposta. O histórico de cada conversa fica na memória do processo, por conversa_id.
 """
 
@@ -25,7 +25,7 @@ _orquestrador: Orquestrador | None = None
 @mcp.tool()
 async def conversar(mensagem: str, conversa_id: str = "padrao") -> dict:
     """Responde uma mensagem da pessoa sobre finanças. Devolve 'resposta' (texto), 'rota' (agentes,
-    fora_do_escopo, conversa, apoio, bloqueado...), 'destinos' (agentes chamados), 'pergunta_autonoma'
+    fora_do_escopo, conversa, bloqueado...), 'destinos' (agentes chamados), 'pergunta_autonoma'
     (a pergunta como foi entendida) e 'agentes' (status de cada agente)."""
     global _orquestrador
     _orquestrador = _orquestrador or Orquestrador()

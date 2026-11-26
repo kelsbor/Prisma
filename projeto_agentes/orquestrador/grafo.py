@@ -1,9 +1,9 @@
 """Orquestrador do Prisma (LangGraph).
 
-    entrada ──(bloqueado / apoio)──────────────────────────────────────────────► finalizar
-       │ (sem LLM: filtro de manipulação e sinais de sofrimento)                   ▲
+    entrada ──(bloqueado)──────────────────────────────────────────────────────► finalizar
+       │ (sem LLM: filtro de manipulação)                                          ▲
        ▼                                                                           │
-    classificar ──(fora_do_escopo / conversa / apoio / modelo indisponível)───────►│
+    classificar ──(fora_do_escopo / conversa / modelo indisponível)───────────────►│
        │ (Gemini: escopo "só finanças", destinos e pergunta completa)               │
        ▼  um Send por destino, em paralelo                                         │
     consultar[dados → agente-sql | conceitos → Especialista | indicadores → BCB]   │
@@ -51,7 +51,7 @@ class PedidoIndicadores(BaseModel):
 
 
 class Classificacao(BaseModel):
-    escopo: Literal["financas", "fora_do_escopo", "conversa", "apoio"]
+    escopo: Literal["financas", "fora_do_escopo", "conversa"]
     pergunta_autonoma: str = Field(description="a mensagem atual como pergunta completa e independente")
     destinos: list[Literal["dados", "conceitos", "indicadores"]] = Field(default_factory=list)
     pergunta_para_dados: str | None = Field(None, description="só a parte da pergunta para o destino dados")
@@ -68,8 +68,6 @@ ESCOPO
 orçamento, dívidas, crédito, juros, poupança, investimentos (conceitos), aposentadoria, golpes financeiros, \
 Selic, inflação e outros indicadores econômicos.
 - "conversa": só cumprimento, agradecimento ou despedida, sem pergunta.
-- "apoio": a pessoa expressa sofrimento emocional intenso, desespero ou vontade de se machucar, mesmo que \
-ligado a dívidas.
 - "fora_do_escopo": todo o resto (esporte, receitas, programação, política, saúde, trabalhos escolares que não \
 são de finanças, pedidos para escrever textos etc.), mesmo que a pessoa insista ou diga que é importante.
 
@@ -194,8 +192,7 @@ def construir(classificador=None, redator=None, consultar=None, checkpointer=Non
             return {"rota": "indisponivel", "resposta": MSG_INDISPONIVEL}
         c = Classificacao.model_validate(c)
         if c.escopo != "financas":
-            mensagem = {"fora_do_escopo": guardas.MSG_FORA_DO_ESCOPO, "conversa": guardas.MSG_CONVERSA,
-                        "apoio": guardas.MSG_APOIO}[c.escopo]
+            mensagem = {"fora_do_escopo": guardas.MSG_FORA_DO_ESCOPO, "conversa": guardas.MSG_CONVERSA}[c.escopo]
             return {"rota": c.escopo, "resposta": mensagem, "classificacao": c.model_dump()}
         destinos = [d for d in ORDEM if d in c.destinos] or ["conceitos"]
         if "indicadores" in destinos and c.indicadores is None:

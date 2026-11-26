@@ -1,8 +1,8 @@
 """Barreiras do orquestrador.
 
-1. Entrada (sem LLM): normaliza a pergunta, bloqueia tentativas óbvias de manipulação e detecta
-   sinais de sofrimento intenso, que recebem o contato do CVV antes de qualquer outra coisa.
-2. Escopo (com LLM, no grafo): só finanças. As mensagens fixas de recusa ficam aqui.
+1. Entrada (sem LLM): normaliza a pergunta e bloqueia tentativas óbvias de manipulação.
+2. Escopo (com LLM, no grafo): só finanças. O que não for finanças é bloqueado com uma mensagem fixa
+   informando que o Prisma não responde a esse assunto.
 3. Saída (o guardião, único para todos os agentes): todo valor em R$ e todo percentual de cada resposta
    precisa estar nas evidências (linhas do SQL, dados do Banco Central, trechos da base, resumo do mês)
    ou na pergunta. Senão, o texto é descartado e a pessoa recebe os dados.
@@ -17,15 +17,11 @@ MAX_PERGUNTA = 500
 MSG_BLOQUEADO = ("Não posso atender esse pedido. Posso ajudar com os seus gastos e entradas, saldo e cartões, "
                  "conceitos de educação financeira e indicadores como Selic, inflação e juros.")
 MSG_LONGA = f"A mensagem é longa demais (máximo de {MAX_PERGUNTA} caracteres). Tente resumir a pergunta."
-MSG_FORA_DO_ESCOPO = ("Eu sou o assistente financeiro do Prisma e só consigo ajudar com finanças: os seus gastos "
-                      "e entradas, saldo, fatura e limite dos cartões, conceitos de educação financeira e "
-                      "indicadores do Banco Central, como Selic, inflação e juros. Quer perguntar algo sobre isso?")
+MSG_FORA_DO_ESCOPO = ("Não vou responder a essa pergunta porque ela não é sobre finanças. O Prisma só responde "
+                      "perguntas sobre os seus gastos e entradas, saldo, fatura e limite dos cartões, educação "
+                      "financeira e indicadores do Banco Central, como Selic, inflação e juros.")
 MSG_CONVERSA = ("Estou por aqui! Posso responder sobre os seus gastos e entradas, saldo, fatura e limite dos "
                 "cartões, explicar conceitos de finanças ou trazer juros, Selic e inflação do Banco Central.")
-MSG_APOIO = ("Sinto muito que você esteja passando por isso. Você não precisa enfrentar esse momento sem apoio: "
-             "o CVV (Centro de Valorização da Vida) atende de graça, 24 horas, pelo telefone 188 ou pelo chat em "
-             "cvv.org.br. Em emergência, ligue 192 (SAMU). Quando quiser, também posso ajudar a olhar as suas "
-             "finanças com calma, um passo de cada vez.")
 
 _TENTATIVAS = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in (
     r"\bignor[ea]\b.{0,40}\b(instru|regra|anterior|acima)",
@@ -38,16 +34,6 @@ _TENTATIVAS = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in (
     r";\s*(select|drop|delete|insert|update|with)\b",
 )]
 
-# Sinais claros de risco: resposta fixa com o CVV, sem depender do LLM.
-_SOFRIMENTO = [re.compile(p, re.IGNORECASE) for p in (
-    r"\bsuic[ií]d",
-    r"\bme\s+matar\b",
-    r"\btirar\s+(a\s+)?minha\s+(pr[oó]pria\s+)?vida\b",
-    r"\b(quero|vou)\s+morrer\b",
-    r"\bn[aã]o\s+(aguento|quero)\s+mais\s+viver\b",
-    r"\bacabar\s+com\s+(a\s+)?minha\s+vida\b",
-)]
-
 
 def normalizar(pergunta: str) -> str:
     texto = unicodedata.normalize("NFKC", pergunta or "")
@@ -56,10 +42,8 @@ def normalizar(pergunta: str) -> str:
 
 def verificar_entrada(pergunta: str) -> tuple[str, str | None, str | None]:
     """Devolve (texto, rota, mensagem). rota None = pode seguir para o classificador;
-    "bloqueado" ou "apoio" = responder já com a mensagem."""
+    "bloqueado" = responder já com a mensagem."""
     texto = normalizar(pergunta)
-    if any(r.search(texto) for r in _SOFRIMENTO):
-        return texto, "apoio", MSG_APOIO
     if not texto:
         return texto, "bloqueado", MSG_BLOQUEADO
     if len(texto) > MAX_PERGUNTA:
