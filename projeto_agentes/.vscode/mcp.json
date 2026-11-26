@@ -1,5 +1,17 @@
 {
   "servers": {
+    "prisma-orquestrador": {
+      "type": "stdio",
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m",
+        "orquestrador"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
     "prisma-especialista": {
       "type": "stdio",
       "command": "${workspaceFolder}/.venv/bin/python",

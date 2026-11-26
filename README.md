@@ -113,7 +113,7 @@ Prisma/
 ## Próximos passos
 
 - Notificações dos agentes para o app (mudanças de gasto, variação dos juros).
-- Conferência automática das respostas do Especialista e do agente-sql, como o guardião do R$ do Consultas.
+- Persistir o histórico do orquestrador (hoje fica na memória do processo).
 - Medir a busca do Especialista com os modos `local` e `gemini` e revisar a base de conhecimento.
 
 ## Branches

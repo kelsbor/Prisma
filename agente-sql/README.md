@@ -28,9 +28,27 @@ python agente.py
 Fluxo (o "Agente Simples"):
 
 1. o Gemini recebe a descrição das tabelas e a pergunta, e devolve só o SQL;
-2. o SQL é executado sem validação (o banco é aberto como somente leitura);
-3. o Gemini recebe a pergunta, o SQL e o resultado (mesmo se der erro ou vier vazio);
+2. o SQL é executado com a proteção abaixo; se o banco recusar, o Gemini tem 1 chance de corrigir;
+3. o Gemini recebe a pergunta, o SQL e o resultado e redige a resposta;
 4. a resposta aparece na tela. Cada pergunta é independente: não há histórico.
+
+### Proteção do SQL (`guardas.py`, só biblioteca padrão)
+
+Fica aqui porque o SQL só existe dentro deste agente: quem executa é quem consegue barrar.
+
+| Proteção | Como |
+|---|---|
+| Validação do SQL | o próprio SQLite confere cada leitura (`set_authorizer`): só `SELECT`/`WITH`, só `vw_registers`, `account_dim` e `item_dim` (a view pode ler as tabelas dela por dentro), sem `PRAGMA`, `ATTACH`, escrita, `sqlite_master` nem funções como `load_extension`; uma instrução por vez |
+| Execução | banco somente leitura (`mode=ro` e `query_only`), até 5 s e 200 linhas |
+| Correção | se o SQL for recusado ou falhar, o Gemini recebe o erro e tenta mais uma vez |
+
+O **filtro de entrada** (manipulação, "só finanças") e o **guardião** dos valores da resposta ficam no
+**orquestrador** (`projeto_agentes/orquestrador/guardas.py`), que é o ponto de entrada único. O guardião
+confere cada R$ da resposta contra as linhas que este agente devolve em `dados`.
+
+A ferramenta MCP devolve também `status`: `sucesso` ou `erro_sql` (o mesmo valor fica em `metricas.db`).
+No benchmark (`avaliar.py --hoje 2026-11-25`), a proteção manteve o acerto de fatos (21/46 antes e depois)
+e zerou os erros de SQL (2 → 0) com a segunda tentativa.
 
 ## Rodar como servidor MCP
 

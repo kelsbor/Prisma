@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,7 +24,7 @@ class MetricasTest(unittest.TestCase):
             metricas.registrar_resultado_sql(2, False)
             metricas.finalizar("sucesso")
 
-            with sqlite3.connect(banco) as con:
+            with closing(sqlite3.connect(banco)) as con, con:
                 linha = con.execute(
                     "SELECT resultado, etapas_ms, chamadas_llm, tentativas_llm, "
                     "tokens_entrada, tokens_saida, tokens_total, tokens_completos, "
@@ -48,7 +49,7 @@ class MetricasTest(unittest.TestCase):
             metricas.registrar_chamada_llm(None)
             metricas.finalizar("sucesso")
 
-            with sqlite3.connect(banco) as con:
+            with closing(sqlite3.connect(banco)) as con, con:
                 linha = con.execute(
                     "SELECT chamadas_llm, tentativas_llm, tokens_total, tokens_completos "
                     "FROM operacoes"

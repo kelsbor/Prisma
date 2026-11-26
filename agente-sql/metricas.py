@@ -8,7 +8,7 @@ import sqlite3
 import sys
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
@@ -94,7 +94,7 @@ class MetricasExecucao:
         self, iniciado_em: str, duracao: float, resultado: str, tipo_erro: str | None,
         tokens_completos: bool,
     ) -> None:
-        with sqlite3.connect(self._caminho, timeout=10) as banco:
+        with closing(sqlite3.connect(self._caminho, timeout=10)) as banco, banco:
             banco.execute("""
                 CREATE TABLE IF NOT EXISTS operacoes (
                     id TEXT PRIMARY KEY,
@@ -146,7 +146,7 @@ def _percentil(valores: list[float], percentil: float) -> float | None:
 def resumo(caminho: Path = BANCO_METRICAS) -> str:
     if not caminho.exists():
         return "Ainda não há métricas registradas."
-    with sqlite3.connect(caminho) as banco:
+    with closing(sqlite3.connect(caminho)) as banco:
         linhas = banco.execute(
             "SELECT componente, resultado, duracao_ms, tokens_total, tokens_completos FROM operacoes"
         ).fetchall()

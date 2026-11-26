@@ -64,6 +64,10 @@ def perguntar(pergunta: str, resumo_mes: dict | None = None, indicadores: list[s
                  "trechos": trechos or todos,   # sem Gemini, mostra os mais próximos mesmo abaixo da nota mínima
                  "fontes": fontes or sorted({f"{t['fonte']}, p. {t['pagina']}" for t in todos}),
                  "gerado_por": f"sem Gemini ({e})"}
+    # O que entrou no prompt: o orquestrador usa para conferir os números da resposta (guardião).
+    saida["evidencias"] = {"trechos": [{"fonte": t["fonte"], "pagina": t["pagina"], "texto": t["texto"]}
+                                       for t in trechos],
+                           "dados_do_usuario": resumo_mes, "indicadores": indicadores or []}
 
     log_prompts.registrar({
         "pergunta": pergunta,

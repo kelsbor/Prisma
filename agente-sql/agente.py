@@ -8,9 +8,9 @@ from contextlib import nullcontext
 from datetime import date
 from pathlib import Path
 
-from metricas import MetricasExecucao
-
+import guardas
 from configuracao import carregar
+from metricas import MetricasExecucao
 
 PASTA = Path(__file__).parent
 CONFIG = carregar()   # config.json, ou o .env único do projeto (veja configuracao.py)
@@ -100,12 +100,15 @@ O usuário fez uma pergunta, uma consulta SQL foi executada no banco dele e o re
 
 Como responder:
 - Em português, curto e direto (1 a 3 frases; use lista só se houver vários itens).
-- Use SOMENTE o resultado. Não invente valores nem faça contas que o resultado não sustenta.
+- Use SOMENTE o resultado. Não invente valores nem faça contas: não some, subtraia nem calcule
+  médias ou diferenças. Todo valor em R$ que você citar precisa estar no resultado.
 - Valores em reais no formato R$ 1.234,56. Datas no formato DD/MM/AAAA.
 - Diga o período considerado quando ele não estiver claro na pergunta.
 - Resultado vazio ou total nulo: diga que não encontrou registros para aquilo.
-- Resultado com ERRO: diga que não conseguiu consultar e sugira reformular a pergunta.
 - Se "cortado_em_200" for true, avise que mostrou só parte."""
+
+MSG_ERRO_SQL = ("Não consegui consultar seus dados para essa pergunta. Tente reformular, "
+                "por exemplo indicando o período.")
 
 
 def log(mensagem):
@@ -151,56 +154,97 @@ def limpar_sql(texto):
 
 
 def executar_sql(sql, metricas=None):
+    """Executa o SQL com as barreiras: só leitura das fontes permitidas, 5 s e 200 linhas.
+
+    Devolve {"colunas", "linhas", "cortado_em_200"}; levanta guardas.SqlRejeitado se o SQL
+    for recusado ou falhar.
+    """
+    texto = guardas.checar_texto_sql(sql)
     caminho = (PASTA / CONFIG["banco"]).resolve()
     with (metricas.etapa("execucao_sql_ms") if metricas else nullcontext()):
         try:
             banco = sqlite3.connect(caminho.as_uri() + "?mode=ro", uri=True)
+        except sqlite3.Error as e:
+            raise guardas.SqlRejeitado(f"banco indisponível: {e}") from None
+        try:
             banco.execute("PRAGMA query_only = 1")                # nunca grava, mesmo que o SQL tente
+            recusas = guardas.instalar_autorizador(banco)         # só lê as fontes permitidas
             limite = time.monotonic() + 5                         # e nenhuma consulta passa de 5 s
             banco.set_progress_handler(lambda: 1 if time.monotonic() > limite else 0, 10_000)
             try:
-                cursor = banco.execute(sql)
+                cursor = banco.execute(texto)                     # recusa mais de uma instrução
                 colunas = [c[0] for c in cursor.description or []]
                 linhas = cursor.fetchmany(201)
-            finally:
-                banco.close()
-            resultado = {"colunas": colunas, "linhas": linhas[:200], "cortado_em_200": len(linhas) > 200}
-            if metricas:
-                metricas.registrar_resultado_sql(len(resultado["linhas"]), resultado["cortado_em_200"])
-            return json.dumps(resultado, ensure_ascii=False, default=str)
-        except sqlite3.Error as e:
-            return f"ERRO ao executar: {e}"
+            except sqlite3.Error as e:
+                if recusas:
+                    raise guardas.SqlRejeitado(recusas[0]) from None
+                if "interrupt" in str(e):
+                    raise guardas.SqlRejeitado("a consulta demorou mais de 5 s") from None
+                raise guardas.SqlRejeitado(str(e)[:300]) from None
+        finally:
+            banco.close()
+    resultado = {"colunas": colunas, "linhas": [list(l) for l in linhas[:200]],
+                 "cortado_em_200": len(linhas) > 200}
+    if metricas:
+        metricas.registrar_resultado_sql(len(resultado["linhas"]), resultado["cortado_em_200"])
+    return resultado
+
+
+def gerar_e_executar(pergunta, hoje, metricas, log_detalhes=True):
+    """Gemini escreve o SQL e o banco executa. Se o SQL falhar, o Gemini tem 1 chance de corrigir.
+
+    Devolve (sql, resultado, erro): resultado None quando as duas tentativas falharam.
+    """
+    mensagem = f"Data de hoje: {hoje}\nPergunta: {pergunta}"
+    sql, erro = None, None
+    for _ in range(2):
+        with metricas.etapa("geracao_sql_ms"):
+            sql = limpar_sql(perguntar_ao_llm(PROMPT_SQL, mensagem, metricas))
+        if log_detalhes:
+            log(f"\n[SQL] {sql}")
+        try:
+            return sql, executar_sql(sql, metricas), None
+        except guardas.SqlRejeitado as e:
+            erro = str(e)
+            if log_detalhes:
+                log(f"[SQL recusado] {erro}")
+            mensagem = (f"Data de hoje: {hoje}\nPergunta: {pergunta}\n\n"
+                        f"A consulta anterior falhou.\nSQL anterior:\n{sql}\nErro: {erro}\n"
+                        "Escreva uma consulta corrigida.")
+    return sql, None, erro
 
 
 def responder_detalhado(pergunta, hoje=None, log_detalhes=True):
-    """Faz o fluxo completo e devolve resposta, SQL e dados (é o que o servidor MCP usa)."""
+    """Faz o fluxo completo e devolve resposta, SQL, dados e status (é o que o servidor MCP usa).
+
+    status: "sucesso" ou "erro_sql" (o SQL falhou duas vezes). Os 'dados' (linhas do resultado) são
+    as evidências que o orquestrador usa para conferir os valores da resposta.
+    """
     hoje = hoje or date.today()
     metricas = MetricasExecucao()
     try:
-        with metricas.etapa("geracao_sql_ms"):
-            sql = limpar_sql(perguntar_ao_llm(
-                PROMPT_SQL, f"Data de hoje: {hoje}\nPergunta: {pergunta}", metricas,
-            ))
-        if log_detalhes:
-            log(f"\n[SQL] {sql}")
+        sql, resultado, erro = gerar_e_executar(pergunta, hoje, metricas, log_detalhes)
+        if resultado is None:
+            metricas.finalizar("erro_sql")
+            return {"resposta": MSG_ERRO_SQL, "sql": sql, "dados": {"erro": erro}, "status": "erro_sql"}
 
-        resultado = executar_sql(sql, metricas)
+        texto_resultado = json.dumps(resultado, ensure_ascii=False, default=str)
         if log_detalhes:
-            log(f"[Resultado] {resultado[:500]}")
+            log(f"[Resultado] {texto_resultado[:500]}")
 
         with metricas.etapa("geracao_resposta_ms"):
             resposta = perguntar_ao_llm(
                 PROMPT_RESPOSTA,
                 f"Data de hoje: {hoje:%d/%m/%Y}\nPergunta: {pergunta}\n\n"
-                f"SQL executado:\n{sql}\n\nResultado:\n{resultado}",
+                f"SQL executado:\n{sql}\n\nResultado:\n{texto_resultado}",
                 metricas,
             )
-        dados = json.loads(resultado) if not resultado.startswith("ERRO") else {"erro": resultado}
     except Exception as erro:
         metricas.finalizar("falha", type(erro).__name__)
         raise
-    metricas.finalizar("erro_sql" if resultado.startswith("ERRO") else "sucesso")
-    return {"resposta": resposta, "sql": sql, "dados": dados}
+
+    metricas.finalizar("sucesso")
+    return {"resposta": resposta, "sql": sql, "dados": resultado, "status": "sucesso"}
 
 
 def responder(pergunta):

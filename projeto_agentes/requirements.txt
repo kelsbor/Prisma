@@ -11,6 +11,9 @@ pysqlite3-binary; sys_platform == "linux" and platform_machine == "x86_64"   # S
 langchain-google-genai>=4.0
 fastembed>=0.5            # embeddings locais (PRISMA_EMBEDDINGS=local), sem chave do Gemini
 
+# Orquestrador: grafo com histórico (usa o langchain-google-genai acima)
+langgraph>=1.0
+
 # Consultas: reaproveita o assistente do PrismaAPP (PrismaAPP/agent/src)
 sqlglot>=25.0
 pyyaml>=6.0

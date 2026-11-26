@@ -1,6 +1,7 @@
 import io
 import json
 import sqlite3
+from contextlib import closing
 import sys
 import tempfile
 import unittest
@@ -47,11 +48,11 @@ class AgenteMetricasTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as pasta:
             pasta_temporaria = Path(pasta)
             banco_dados = pasta_temporaria / "financas.db"
-            with sqlite3.connect(banco_dados) as con:
-                con.execute("CREATE TABLE valores (valor INTEGER)")
-                con.execute("INSERT INTO valores VALUES (42)")
+            with closing(sqlite3.connect(banco_dados)) as con, con:
+                con.execute("CREATE TABLE vw_registers (valor INTEGER)")
+                con.execute("INSERT INTO vw_registers VALUES (42)")
             arquivo_metricas = pasta_temporaria / "metricas.db"
-            respostas = iter(("SELECT valor FROM valores", "O valor é 42."))
+            respostas = iter(("SELECT valor FROM vw_registers", "O valor é 42."))
 
             def chamar_modelo(_sistema, _mensagem, metricas=None):
                 if metricas:
@@ -69,7 +70,7 @@ class AgenteMetricasTest(unittest.TestCase):
                 resultado = agente.responder_detalhado("pergunta privada", log_detalhes=False)
 
             self.assertEqual(resultado["dados"]["linhas"], [[42]])
-            with sqlite3.connect(arquivo_metricas) as con:
+            with closing(sqlite3.connect(arquivo_metricas)) as con, con:
                 linha = con.execute(
                     "SELECT resultado, etapas_ms, chamadas_llm, linhas_sql FROM operacoes"
                 ).fetchone()
@@ -82,10 +83,10 @@ class AgenteMetricasTest(unittest.TestCase):
     def test_erro_sql_nao_e_contabilizado_como_sucesso(self):
         with tempfile.TemporaryDirectory() as pasta:
             pasta_temporaria = Path(pasta)
-            with sqlite3.connect(pasta_temporaria / "financas.db"):
+            with closing(sqlite3.connect(pasta_temporaria / "financas.db")):
                 pass
             arquivo_metricas = pasta_temporaria / "metricas.db"
-            respostas = iter(("SELECT inexistente FROM ausente", "Não consegui consultar."))
+            respostas = iter(("SELECT inexistente FROM ausente", "SELECT outra FROM ausente"))
 
             def chamar_modelo(_sistema, _mensagem, metricas=None):
                 if metricas:
@@ -102,7 +103,7 @@ class AgenteMetricasTest(unittest.TestCase):
             ):
                 resultado = agente.responder_detalhado("pergunta privada", log_detalhes=False)
 
-            with sqlite3.connect(arquivo_metricas) as con:
+            with closing(sqlite3.connect(arquivo_metricas)) as con, con:
                 status = con.execute("SELECT resultado FROM operacoes").fetchone()[0]
             self.assertEqual(status, "erro_sql")
             self.assertIn("erro", resultado["dados"])
@@ -123,7 +124,7 @@ class AgenteMetricasTest(unittest.TestCase):
                 texto = agente.perguntar_ao_llm("system", "question", metricas)
             metricas.finalizar("sucesso")
 
-            with sqlite3.connect(caminho) as con:
+            with closing(sqlite3.connect(caminho)) as con, con:
                 linha = con.execute(
                     "SELECT chamadas_llm, tentativas_llm, tokens_entrada, tokens_saida, "
                     "tokens_total, tokens_completos FROM operacoes"
@@ -153,7 +154,7 @@ class AgenteMetricasTest(unittest.TestCase):
             ):
                 agente.perguntar_ao_llm("system", "question", metricas)
             metricas.finalizar("sucesso")
-            with sqlite3.connect(caminho) as con:
+            with closing(sqlite3.connect(caminho)) as con, con:
                 linha = con.execute(
                     "SELECT chamadas_llm, tentativas_llm, tokens_total, tokens_completos "
                     "FROM operacoes"

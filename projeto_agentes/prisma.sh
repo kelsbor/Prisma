@@ -13,6 +13,7 @@
 #   ./prisma.sh consultas perguntar "pergunta"     perguntas sobre os gastos, com SQL validado
 #   ./prisma.sh sql "pergunta"                     agente-sql da equipe (inclui saldo, fatura e limite)
 #   ./prisma.sh indicadores juros                  juros médios do Banco Central
+#   ./prisma.sh orquestrador chat                  conversa com todos os agentes (só finanças)
 #   ./prisma.sh app [parar] assistente do PrismaAPP (porta 8010), com o mesmo .env
 #   ./prisma.sh testes      roda os testes
 #   ./prisma.sh liberar     derruba agentes do Prisma que ocupam as portas (ex.: de outra pasta)
@@ -404,6 +405,11 @@ case "${1:-iniciar}" in
     saudavel indicadores || unset INDICADORES_URL       # sem o serviço no ar, o Especialista abre o Indicadores por stdio
     agente="$1"; shift
     "$PY" -m "$agente" "$@" ;;
-  ajuda|help|-h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
-  *)         sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  orquestrador)
+    preparar >/dev/null
+    saudavel indicadores || unset INDICADORES_URL       # sem os serviços no ar, o orquestrador abre os agentes por stdio
+    saudavel especialista && export ESPECIALISTA_URL="http://127.0.0.1:${PORTA_ESPECIALISTA}"
+    shift; "$PY" -m orquestrador "$@" ;;
+  ajuda|help|-h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)         sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

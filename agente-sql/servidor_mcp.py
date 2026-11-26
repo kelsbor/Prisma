@@ -27,7 +27,8 @@ async def consultar_financas(pergunta: str) -> dict:
     """Responde uma pergunta em português sobre as finanças do usuário no app: quanto gastou ou recebeu
     (por período, categoria, loja, conta ou cartão), parcelas futuras, saldo das contas, fatura atual e
     limite dos cartões. Envie a pergunta completa, com o período (ex.: "quanto gastei com iFood em
-    outubro de 2026?"). Devolve 'resposta' (texto), 'sql' (consulta executada) e 'dados' (linhas)."""
+    outubro de 2026?"). Devolve 'resposta' (texto), 'sql' (consulta executada), 'dados' (linhas) e
+    'status': sucesso ou erro_sql (não conseguiu consultar)."""
     try:
         return await asyncio.to_thread(agente.responder_detalhado, pergunta)
     except Exception as e:  # erro do Gemini, de rede etc.: devolve em vez de derrubar o servidor

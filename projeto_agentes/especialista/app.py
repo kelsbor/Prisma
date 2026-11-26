@@ -43,7 +43,8 @@ async def resumo_do_mes(periodo: str | None = None) -> dict:
 @mcp.tool()
 async def perguntar(pergunta: str, usar_meus_dados: bool = False, periodo: str | None = None) -> dict:
     """Responde uma dúvida financeira com a base de conhecimento e as taxas do Banco Central. Com
-    usar_meus_dados, inclui o resumo do mês (dados da Pluggy), que então também vai para o Gemini."""
+    usar_meus_dados, inclui o resumo do mês (dados da Pluggy), que então também vai para o Gemini.
+    Devolve também 'evidencias': os trechos, o resumo e as taxas que entraram no prompt."""
     resumo = None
     if usar_meus_dados:
         try:

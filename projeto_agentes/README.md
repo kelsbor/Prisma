@@ -167,6 +167,37 @@ O agente **reaproveita o código do assistente do PrismaAPP** (`PrismaAPP/agent/
 
 Precisa da `GOOGLE_API_KEY`, do código do PrismaAPP (em `../PrismaAPP/agent/src`, ou em `PRISMA_APP_AGENT_SRC`) e do banco da Pluggy. Código: `consultas/motor.py` e `app.py`.
 
+### Orquestrador
+
+Ponto de entrada único, feito com **LangGraph**: recebe a mensagem da pessoa, aplica as barreiras e decide quais agentes chamar, **por MCP**.
+
+```
+entrada ──(manipulação / sofrimento)───────────────────────────────► resposta fixa
+   ▼ (sem LLM)
+classificar ──(fora de finanças / cumprimento)──────────────────────► resposta fixa
+   ▼ (Gemini: escopo, destinos, pergunta completa e a parte de cada agente)
+dados → agente-sql | conceitos → Especialista | indicadores → Indicadores   (em paralelo, 1 chamada cada)
+   ▼
+GUARDIÃO: todo R$ e % de cada resposta precisa estar nas evidências que o agente devolveu
+   ▼      (senão, o texto é descartado e a pessoa recebe os dados)
+sintetizar: 1 agente → a resposta dele; 2 ou mais → o Gemini junta, e o guardião confere de novo
+```
+
+- **Guardião único.** Os agentes não conferem as próprias respostas: o orquestrador confere todas, contra as evidências que cada um devolve. O agente-sql devolve as linhas do SQL (`dados`), o Indicadores devolve os dados do Banco Central e o Especialista devolve `evidencias` (os trechos, o resumo do mês e as taxas que entraram no prompt). Arredondar vale (451,71% → 451,7%); somar, calcular ou inventar não.
+- **Só finanças.** O classificador recusa outros assuntos com uma mensagem fixa.
+- **Sofrimento.** Frases como "não aguento mais viver" recebem o contato do CVV (188) antes de qualquer outra coisa, sem depender do LLM; o classificador também pode encaminhar para essa resposta.
+- **Histórico.** Cada conversa (`conversa_id`) guarda as mensagens; "e em setembro?" vira "Quanto gastei com supermercado em setembro de 2026?".
+- **Agente fora do ar** não derruba a resposta: a parte dele vira uma frase dizendo que não foi possível.
+- Conecta no Especialista e no Indicadores por HTTP quando estão no ar (`ESPECIALISTA_URL`, `INDICADORES_URL`, definidas pelo `prisma.sh`) e, senão, por stdio; o agente-sql é sempre por stdio.
+
+```bash
+./prisma.sh orquestrador chat                                    # conversa no terminal
+./prisma.sh orquestrador perguntar "qual meu saldo e quanto está o juro do rotativo?" --json
+./prisma.sh orquestrador servidor --http --port 8008             # ferramenta MCP conversar(mensagem, conversa_id)
+```
+
+Código: `orquestrador/grafo.py` (grafo e prompts), `agentes.py` (chamadas MCP), `guardas.py` e `app.py`. Testes em `tests/test_orquestrador.py`.
+
 ### agente-sql
 
 A pasta `agente-sql/` do repositório (ao lado de `projeto_agentes/` e `PrismaAPP/`) é o agente text-to-SQL simples da equipe. Ele faz duas coisas:
@@ -188,11 +219,11 @@ Ele usa o mesmo `.env` único: `GOOGLE_API_KEY`, `GEMINI_MODEL`, `PRISMA_APP_DB`
 |---|---|---|
 | Código | assistente do PrismaAPP | agente simples da equipe |
 | Fontes | só a `vw_registers` (transações) | `vw_registers` e `account_dim` (também saldo, fatura e limite) |
-| Validação do SQL | um único `SELECT`, só na view, sem comentários nem `PRAGMA` | nenhuma: o banco é aberto somente leitura, com limite de 5 s e 200 linhas |
-| Conferência da resposta | todo R$ citado precisa estar no resultado | não confere |
-| Servidor | HTTP no `prisma.sh` (porta 8006) | stdio (VS Code) |
+| Validação do SQL | um único `SELECT`, só na view, sem comentários nem `PRAGMA` (sqlglot) | um único `SELECT`, só `vw_registers`, `account_dim` e `item_dim`, conferido pelo próprio SQLite (`set_authorizer`) |
+| Conferência da resposta | todo R$ citado precisa estar no resultado | feita pelo guardião do orquestrador, com as linhas que o agente devolve |
+| Servidor | HTTP no `prisma.sh` (porta 8006) | stdio (VS Code e orquestrador) |
 
-Para perguntas sobre gastos, prefira o Agente de Consultas, que tem mais proteções. Para saldo, fatura e limite, use o agente-sql.
+O orquestrador usa o agente-sql para os dados da pessoa, porque ele também traz saldo, fatura e limite.
 
 **Métricas do agente-sql.** O agente-sql registra latência e resultado de cada pergunta em `agente-sql/metricas.db` e tem um benchmark próprio com as perguntas de `projeto_agentes/perguntas_respostas_prisma(in).csv`: `cd ../agente-sql && python avaliar.py --hoje 2026-11-25` e `python metricas.py` (detalhes no `agente-sql/README.md`).
 
@@ -520,12 +551,14 @@ Em `~/.prisma`: `chaves.json` (token dos serviços), `app/prisma.db` (dados da P
 | Banco da Pluggy aberto somente leitura (`mode=ro` e `query_only`) | Especialista, Consultas, agente-sql |
 | Consultas: filtro de manipulação, SQL validado (um `SELECT`, só a view), 200 linhas e 3 s | `consultas/motor.py` + `PrismaAPP/agent` |
 | Consultas: todo valor em R$ da resposta precisa existir no resultado | `consultas/motor.py` |
-| agente-sql: até 5 s e 200 linhas por consulta | `../agente-sql/agente.py` |
+| agente-sql: SQL conferido pelo SQLite (só as fontes permitidas), 5 s, 200 linhas e 1 correção | `../agente-sql/guardas.py` |
+| Orquestrador: filtro de manipulação, "só finanças", CVV (188) em sinais de sofrimento | `orquestrador/guardas.py` |
+| Orquestrador (guardião único): todo R$ e % de cada resposta precisa estar nas evidências do agente | `orquestrador/guardas.py` |
 | Banco Central: só códigos de série saem; cache de 12 h com aviso de dado antigo | `indicadores/bcb.py` |
 | Simulação do rotativo respeita o teto legal e avisa que é estimativa | `indicadores/consultas.py` |
 | Serviços só em `127.0.0.1`, com token; `.env` e bancos fora do Git | `comum/servidor_http.py`, `.gitignore` |
 
-O que ainda falta: conferir automaticamente a resposta do Especialista e a do agente-sql (como o guardião do R$ do Consultas), defesa mais forte contra prompt injection e filtro de conteúdo sensível, com encaminhamento a canais de apoio como o CVV (188).
+O que ainda falta: uma defesa mais forte contra prompt injection (os filtros atuais pegam só as tentativas óbvias) e persistir o histórico do orquestrador.
 
 ## Testes
 
@@ -582,4 +615,4 @@ projeto_agentes/
 - As taxas do Banco Central são médias de mercado, divulgadas com algumas semanas de atraso, e não a taxa do contrato da pessoa.
 - A qualidade da busca do Especialista ainda não foi medida com o Gemini, e quase metade dos pedaços da base vem de livros técnicos da CVM.
 - O Agente de Consultas depende da estrutura do código do assistente do PrismaAPP.
-- Próximos passos: notificações dos agentes para o app (mudanças de gasto, juros), conferência automática das respostas do Especialista e do agente-sql e revisão da base de conhecimento.
+- Próximos passos: notificações dos agentes para o app (mudanças de gasto, juros), histórico persistente no orquestrador e revisão da base de conhecimento.
