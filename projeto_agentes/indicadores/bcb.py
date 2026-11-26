@@ -9,6 +9,7 @@ As respostas ficam em ~/.prisma/indicadores/cache.json por 12 horas. Se a API fa
 
 import json
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 
@@ -23,11 +24,22 @@ class ErroBCB(Exception):
     pass
 
 
-def _baixar(codigo: int, n: int) -> list:
+def _get(codigo: int, n: int) -> list:
     req = urllib.request.Request(URL.format(codigo=codigo, n=n),
                                  headers={"User-Agent": "Prisma/1.0 (projeto educacional)", "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read().decode("utf-8"))
+
+
+def _baixar(codigo: int, n: int) -> list:
+    try:
+        return _get(codigo, n)
+    except urllib.error.HTTPError as e:
+        # A API às vezes responde 304 (sem corpo) para "ultimos/N" mesmo sem cabeçalho condicional
+        # (ex.: série 13522, IPCA em 12 meses, com N=1). Pedir um ponto a mais funciona; fica com os N últimos.
+        if e.code != 304:
+            raise
+        return _get(codigo, n + 1)[-n:]
 
 
 def _ler_cache() -> dict:

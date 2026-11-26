@@ -75,3 +75,28 @@ def test_simulacao_com_teto_do_rotativo(api):
     assert longo["teto_aplicado"] and longo["juros"] == 1000.0 and longo["total"] == 2000.0
     pessoal = consultas.simular(1000, "credito_pessoal", 12)            # anual convertido em mensal
     assert pessoal["juros"] == pytest.approx(601.0, abs=0.5)
+
+
+def test_api_responde_304_pede_um_ponto_a_mais(monkeypatch):
+    """A API do BCB responde 304 para "ultimos/1" da série 13522 (IPCA 12 meses); com 2 pontos funciona."""
+    import urllib.error
+    pedidos = []
+
+    def get(codigo, n):
+        pedidos.append(n)
+        if n == 1:
+            raise urllib.error.HTTPError("https://api.bcb.gov.br", 304, "Not Modified", {}, None)
+        return [{"data": "01/09/2026", "valor": "4.58"}, {"data": "01/10/2026", "valor": "4.63"}][-n:]
+    monkeypatch.setattr(bcb, "_get", get)
+    assert bcb._baixar(13522, 1) == [{"data": "01/10/2026", "valor": "4.63"}]
+    assert pedidos == [1, 2]
+
+
+def test_outros_erros_http_nao_sao_mascarados(monkeypatch):
+    import urllib.error
+
+    def get(codigo, n):
+        raise urllib.error.HTTPError("https://api.bcb.gov.br", 500, "Erro", {}, None)
+    monkeypatch.setattr(bcb, "_get", get)
+    with pytest.raises(urllib.error.HTTPError):
+        bcb._baixar(13522, 1)
