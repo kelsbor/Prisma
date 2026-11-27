@@ -96,6 +96,7 @@ def test_download_da_pluggy_e_compatibilidade(agente_sql, monkeypatch):
     assert resumo["entradas"] == 4500.0 and resumo["gastos"] == 48.7
     assert {c["conta"] for c in resumo["contas"]} == {"Banco X - Conta", "Cartão Platinum"}
 
-    resultado = json.loads(agente_sql.agente.executar_sql("SELECT ROUND(SUM(valor_gasto), 2) FROM vw_registers"))
+    resultado = agente_sql.agente.executar_sql("SELECT ROUND(SUM(valor_gasto), 2) FROM vw_registers")
     assert resultado["linhas"] == [[48.7]]
-    assert agente_sql.agente.executar_sql("DELETE FROM transaction_fact").startswith("ERRO")   # somente leitura
+    with pytest.raises(agente_sql.agente.guardas.SqlRejeitado):                              # somente leitura
+        agente_sql.agente.executar_sql("DELETE FROM transaction_fact")
